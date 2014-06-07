@@ -154,22 +154,23 @@ local function SetDDSelectByName(self, wndDDList, strName)
 end
 
 local function BuildHeadingMenu(self, tTag)
-	local wnd = Apollo.LoadForm(self.xmlDoc, "HeaderOptionsForm", self.wndOptions:FindChild("wnd_ScrollFrame:group_BioMarkupStyles") , self)
-	wnd:FindChild("wnd_label"):SetText(tTag.tag)
-	wnd:SetName("wnd_"..tTag.tag)
-	wnd:FindChild("btn_DDAlign:ddList"):Show(false)	
-	local wndButton = wnd:FindChild("btn_DDFont")
-	BuildFontDropDown(self, wndButton)
-	wnd:FindChild("btn_DDFont"):SetText(tTag.font)
-	SetDDSelectByName(self, wnd:FindChild("btn_DDFont:ddList"), tTag.font)
-	
-	wnd:FindChild("btn_DDAlign"):SetText(tTag.align)
-	SetDDSelectByName(self, wnd:FindChild("btn_DDAlign:ddList"), tTag.align)
-	
-	wnd:FindChild("btn_Color:swatch"):SetBGColor(tTag.color)	
-	local sampleTest = string.format("<P Align=\"%s\" Font=\"%s\" TextColor=\"%s\"> {%s} Text Sample</P>",tTag.align, tTag.font, tTag.color, tTag.tag)
-	wnd:FindChild("wnd_Sample"):SetAML(sampleTest)
-	
+	if type(tTag) == "table" and tTag.align and tTag.color and tTag.tag and tTag.font then
+		local wnd = Apollo.LoadForm(self.xmlDoc, "HeaderOptionsForm", self.wndOptions:FindChild("wnd_ScrollFrame:group_BioMarkupStyles") , self)
+		wnd:FindChild("wnd_label"):SetText(tTag.tag)
+		wnd:SetName("wnd_"..tTag.tag)
+		wnd:FindChild("btn_DDAlign:ddList"):Show(false)	
+		local wndButton = wnd:FindChild("btn_DDFont")
+		BuildFontDropDown(self, wndButton)
+		wnd:FindChild("btn_DDFont"):SetText(tTag.font)
+		SetDDSelectByName(self, wnd:FindChild("btn_DDFont:ddList"), tTag.font)
+		
+		wnd:FindChild("btn_DDAlign"):SetText(tTag.align)
+		SetDDSelectByName(self, wnd:FindChild("btn_DDAlign:ddList"), tTag.align)
+		
+		wnd:FindChild("btn_Color:swatch"):SetBGColor(tTag.color)	
+		local sampleTest = string.format("<P Align=\"%s\" Font=\"%s\" TextColor=\"%s\"> {%s} Text Sample</P>",tTag.align, tTag.font, tTag.color, tTag.tag)
+		wnd:FindChild("wnd_Sample"):SetAML(sampleTest)
+	end
 end
 
 -----------------------------------------------------------------------------------------------
@@ -341,7 +342,11 @@ function PDA:OnRPCoreCallback(tArgs)
 	wnd:Show(false, true)
 	wnd:SetUnit(unit, 1)
 	wnd:SetName("wnd_"..strUnitName)
-	wnd:FindChild("btn_RP"):SetData(strUnitName)
+	wnd:SetData(
+		{
+			unitName = strUnitName
+		}
+	)
 	local tNameplate =
 	{
 		unitOwner 		= unit,
@@ -500,6 +505,7 @@ function PDA:DrawRPNamePlate(tNameplate)
 	local xmlNamePlate = XmlDoc:new()
 	local wndNameplate = tNameplate.wndNameplate
 	local wndName = wndNameplate:FindChild("wnd_Name")
+	local wndTitle = wndNameplate:FindChild("wnd_Title")
 	
 	tRPColors = self.tPDAOptions.tRPColors
 	tCSColors = self.tPDAOptions.tCSColors
@@ -508,10 +514,22 @@ function PDA:DrawRPNamePlate(tNameplate)
 	rpTitle = RPCore:FetchTrait(unitName,"title")
 	rpStatus = RPCore:GetTrait(unitName, "rpflag")
 	
-	if (rpFullname ~= nil) then xmlNamePlate:AddLine(rpFullname, tCSColors.strLabelColor, "CRB_Interface12_BO", "Center")  end
-	if (rpTitle ~= nil) then xmlNamePlate:AddLine(rpTitle, tCSColors.strEntryColor, "CRB_Interface8","Center") end
-	wndName:SetDoc(xmlNamePlate)
-	if rpStatus ~= nil then wndNameplate:FindChild("btn_RP"):SetBGColor(tRPColors[rpStatus]) end
+	wndName:SetFont("CRB_Interface14_BO")
+	wndName:SetTextColor(tCSColors.strLabelColor)
+	wndTitle:SetFont("CRB_Interface10")
+	wndTitle:SetTextColor(tCSColors.strEntryColor)
+	
+	if (rpFullname ~= nil) then wndName:SetText(rpFullname) end
+	if (rpTitle ~= nil) then wndTitle:SetText(rpTitle) else wndTitle:SetText("") end
+	
+	if rpStatus ~= nil then
+		local strState = RPCore:FlagsToString(rpStatus)
+		local btnRP = wndNameplate:FindChild("btn_RP")
+		btnRP:SetBGColor(tRPColors[rpStatus])
+		local xmlTooltip = XmlDoc.new()
+		xmlTooltip:AddLine(strState, tRPColors[rpStatus], "CRB_InterfaceMedium")
+		btnRP:SetTooltipDoc(xmlTooltip)
+	end
 end
 
 -----------------------------------------------------------------------------------------------
@@ -551,38 +569,47 @@ function PDA:DrawCharacterSheet(unitName, unit)
 	end
 	
 
-	local tCSColors = self.tPDAOptions.tCSColors
+	local strLabelColor = self.tPDAOptions.tCSColors.strLabelColor
+	local strEntryColor = self.tPDAOptions.tCSColors.strEntryColor
 	
 	if (rpFullname ~= nil) then
-		strCharacterSheet = strCharacterSheet .. string.format(ktCSstrings.Name, self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpFullname)
+		local line = string.format(ktCSstrings.Name, strLabelColor, strEntryColor, rpFullname)
+		strCharacterSheet = strCharacterSheet .. line
 	end
-	if self.wndCS:FindChild("wnd_Tabs:btn_Profile"):IsChecked() == true then
-		if (rpTitle ~= nil) then
-			strCharacterSheet = strCharacterSheet .. string.format(ktCSstrings.Title, self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpTitle)
+	
+	if (rpTitle ~= nil) then
+		strCharacterSheet = strCharacterSheet .. string.format(ktCSstrings.Title, strLabelColor,strEntryColor, rpTitle)
+	end
+	if (rpRace ~= nil) then 
+		if type(rpRace) == "string" then
+			strCharacterSheet = strCharacterSheet .. string.format(ktCSstrings.Species, strLabelColor, strEntryColor, rpRace)
+		elseif type(rpRace) == "number" then
+			strCharacterSheet = strCharacterSheet.. string.format(ktCSstrings.Species,  strLabelColor, strEntryColor, karRaceToString[rpRace])
 		end
-		if (rpRace ~= nil) then 
-			if type(rpRace) == "string" then
-				strCharacterSheet = strCharacterSheet .. string.format(ktCSstrings.Species, self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpRace)
-			elseif type(rpRace) == "number" then
-				strCharacterSheet = strCharacterSheet.. string.format(ktCSstrings.Species,  self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, karRaceToString[rpRace])
-			end
+	end
+	if (rpGender ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Gender,  strLabelColor, strEntryColor, rpGender) end
+	if (rpAge ~= nil) then strCharacterSheet = strCharacterSheet.. string.format(ktCSstrings.Age,  strLabelColor, strEntryColor, rpAge) end
+	if (rpHeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Height,  strLabelColor, strEntryColor, rpHeight) end
+	if (rpWeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Weight,  strLabelColor, strEntryColor, rpWeight) end
+	if (rpJob ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Job,  strLabelColor, strEntryColor, rpJob) end
+	if (rpShortDesc ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Description,  strLabelColor, strEntryColor, rpShortDesc) end
+
+	local strCharacterBio
+	
+	if self.wndCS:FindChild("wnd_Tabs:btn_History"):IsChecked() == true and bPublicHistory == true then
+		if rpHistory ~= nil then
+			strCharacterBio = string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Biographical Information: </P>",  strLabelColor)..self:ParseMarkup(rpHistory)
 		end
-		if (rpGender ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Gender,  self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpGender) end
-		if (rpAge ~= nil) then strCharacterSheet = strCharacterSheet.. string.format(ktCSstrings.Age,  self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpAge) end
-		if (rpHeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Height,  self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpHeight) end
-		if (rpWeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Weight,  self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpWeight) end
-		if (rpJob ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Job,  self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpJob) end
-		if (rpShortDesc ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Description,  self.tPDAOptions.tCSColors.strLabelColor, self.tPDAOptions.tCSColors.strEntryColor, rpShortDesc) end
 	end
 	
 	if self.wndCS:FindChild("wnd_Tabs:btn_History"):IsChecked() == true and bPublicHistory == true then
 		if rpHistory ~= nil then
-			local parsedHistory = self:ParseMarkup(rpHistory)
-			strCharacterSheet = strCharacterSheet..string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Biographical Information: </P>",  self.tPDAOptions.tCSColors.strLabelColor)..parsedHistory
+			return strCharacterBio
 		end
+	else
+		return strCharacterSheet
 	end
-	
-	return strCharacterSheet
+
 end
 
 function PDA:ParseMarkup(strText)
@@ -641,7 +668,7 @@ end
 
 function PDA:CreateCharacterSheet(wndHandler, wndControl)
 	local unit = wndControl:GetParent():GetUnit()
-	local unitName = wndControl:GetData()
+	local unitName = wndControl:GetParent():GetData().unitName
 		
 	if not self.wndCS then
 		self.wndCS = Apollo.LoadForm(self.xmlDoc, "CharSheetForm", nil, self)
@@ -649,7 +676,6 @@ function PDA:CreateCharacterSheet(wndHandler, wndControl)
 		self.wndCS:FindChild("btn_Help:wnd"):Show(false)
 	end
 	
-	local unitName = unit:GetName()
 	local rpVersion, rpAddons = RPCore:QueryVersion(unitName)
 	
 	if (rpVersion ~= nil) then
@@ -966,14 +992,16 @@ function PDA:OnShowOptions(wndHandler, wndControl)
 	end
 	
 	for i,tTag in pairs(self.tPDAOptions.tMarkupStyles) do
-		local wndStylePanel = wndOptions:FindChild("group_BioMarkupStyles:wnd_"..tTag.tag)
-		wndStylePanel:FindChild("btn_DDFont"):SetText(tTag.font)
-		SetDDSelectByName(self, wndStylePanel:FindChild("btn_DDFont:ddList"), tTag.font)
-		wndStylePanel:FindChild("btn_DDAlign"):SetText(tTag.align)
-		SetDDSelectByName(self, wndStylePanel:FindChild("btn_DDAlign:ddList"), tTag.align)
-		wndStylePanel:FindChild("btn_Color:swatch"):SetBGColor(tTag.color)
-		local sampleTest = string.format("<P Align=\"%s\" Font=\"%s\" TextColor=\"%s\"> {%s} Text Sample</P>",tTag.align, tTag.font, tTag.color, tTag.tag)
-		wndStylePanel:FindChild("wnd_Sample"):SetAML(sampleTest)
+		if type(tTag) == "table" and tTag.align and tTag.color and tTag.tag and tTag.font then
+			local wndStylePanel = wndOptions:FindChild("group_BioMarkupStyles:wnd_"..tTag.tag)
+			wndStylePanel:FindChild("btn_DDFont"):SetText(tTag.font)
+			SetDDSelectByName(self, wndStylePanel:FindChild("btn_DDFont:ddList"), tTag.font)
+			wndStylePanel:FindChild("btn_DDAlign"):SetText(tTag.align)
+			SetDDSelectByName(self, wndStylePanel:FindChild("btn_DDAlign:ddList"), tTag.align)
+			wndStylePanel:FindChild("btn_Color:swatch"):SetBGColor(tTag.color)
+			local sampleTest = string.format("<P Align=\"%s\" Font=\"%s\" TextColor=\"%s\"> {%s} Text Sample</P>",tTag.align, tTag.font, tTag.color, tTag.tag)
+			wndStylePanel:FindChild("wnd_Sample"):SetAML(sampleTest)
+		end
 	end
 	local tCSColors = self.tPDAOptions.tCSColors
 	wndOptions:FindChild("btn_Color_Name"):FindChild("swatch"):SetBGColor(tCSColors.strLabelColor)
