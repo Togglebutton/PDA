@@ -37,18 +37,6 @@ local karGenderToString =
 	[2] = Apollo.GetString("CRB_UnknownType"),
 }
 
-local ktCSstrings =
-{
-	Name = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Name: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-	Species = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Species: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-	Gender = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Gender: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-	Age = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Age: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-	Height = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Height: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-	Weight = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Weight: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-	Title = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Title: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-	Job = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Occupation: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-	Description = "<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Description: <BR /><P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",
-}
 
 local ktPDAOptions =
 {
@@ -91,7 +79,7 @@ local ktRaceSprites =
 local knDescriptionMax = 250
 local knBioMax = 2500
 local knTargetRange = 40
-
+local knAnchor = 1
 -----------------------------------------------------------------------------------------------
 -- Local Functions
 -----------------------------------------------------------------------------------------------
@@ -340,7 +328,7 @@ function PDA:OnRPCoreCallback(tArgs)
 	
 	local wnd = Apollo.LoadForm(self.xmlDoc, "OverheadForm", "InWorldHudStratum", self)
 	wnd:Show(false, true)
-	wnd:SetUnit(unit, 1)
+	wnd:SetUnit(unit, knAnchor)
 	wnd:SetName("wnd_"..strUnitName)
 	wnd:SetData(
 		{
@@ -357,7 +345,6 @@ function PDA:OnRPCoreCallback(tArgs)
 		bOccluded 		= wnd:IsOccluded(),
 		eDisposition	= unit:GetDispositionTo(self.unitPlayer),
 		bShow			= false,
-		nOffset			= self.tPDAOptions.nOffset or 0,
 	}
 	
 	self.arUnit2Nameplate[idUnit] = tNameplate
@@ -477,9 +464,9 @@ function PDA:DrawNameplate(tNameplate)
 	tNameplate.eDisposition = unitOwner:GetDispositionTo(unitPlayer)
 	
 	if unitOwner:IsMounted() and wndNameplate:GetUnit() == unitOwner then
-		wndNameplate:SetUnit(unitOwner:GetUnitMount(), 1)
+		wndNameplate:SetUnit(unitOwner:GetUnitMount(), knAnchor)
 	elseif not unitOwner:IsMounted() and wndNameplate:GetUnit() ~= unitOwner then
-		wndNameplate:SetUnit(unitOwner, 1)
+		wndNameplate:SetUnit(unitOwner, knAnchor)
 	end
 
 	local bShowNameplate = self:CheckDrawDistance(tNameplate) and self:HelperVerifyVisibilityOptions(tNameplate)
@@ -488,11 +475,11 @@ function PDA:DrawNameplate(tNameplate)
 		return
 	end
 	
-	if self.tPDAOptions.nOffset then
-		if tNameplate.nOffset ~= self.tPDAOptions.nOffset then
-			tNameplate.nOffset = self.tPDAOptions.nOffset
-			wndNameplate:SetAnchorOffsets(-150, -40 - tNameplate.nOffset, 150, 0 - tNameplate.nOffset)			
-		end
+
+	if self.tPDAOptions.nOffset and tNameplate.nOffset ~= self.tPDAOptions.nOffset then
+		local tAnchorOffsets = {wndNameplate:GetAnchorOffsets()}
+		tNameplate.nOffset = self.tPDAOptions.nOffset
+		wndNameplate:SetAnchorOffsets(tAnchorOffsets[1], tAnchorOffsets[2] - tNameplate.nOffset, tAnchorOffsets[3], tAnchorOffsets[4] - tNameplate.nOffset)
 	end
 	
 	self:DrawRPNamePlate(tNameplate)	
@@ -573,26 +560,26 @@ function PDA:DrawCharacterSheet(unitName, unit)
 	local strEntryColor = self.tPDAOptions.tCSColors.strEntryColor
 	
 	if (rpFullname ~= nil) then
-		local line = string.format(ktCSstrings.Name, strLabelColor, strEntryColor, rpFullname)
+		local line = string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Name: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>", strLabelColor, strEntryColor, rpFullname)
 		strCharacterSheet = strCharacterSheet .. line
 	end
 	
 	if (rpTitle ~= nil) then
-		strCharacterSheet = strCharacterSheet .. string.format(ktCSstrings.Title, strLabelColor,strEntryColor, rpTitle)
+		strCharacterSheet = strCharacterSheet .. string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Title: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>", strLabelColor,strEntryColor, rpTitle)
 	end
 	if (rpRace ~= nil) then 
 		if type(rpRace) == "string" then
-			strCharacterSheet = strCharacterSheet .. string.format(ktCSstrings.Species, strLabelColor, strEntryColor, rpRace)
+			strCharacterSheet = strCharacterSheet .. string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Species: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>", strLabelColor, strEntryColor, rpRace)
 		elseif type(rpRace) == "number" then
-			strCharacterSheet = strCharacterSheet.. string.format(ktCSstrings.Species,  strLabelColor, strEntryColor, karRaceToString[rpRace])
+			strCharacterSheet = strCharacterSheet.. string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Species: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",  strLabelColor, strEntryColor, karRaceToString[rpRace])
 		end
 	end
-	if (rpGender ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Gender,  strLabelColor, strEntryColor, rpGender) end
-	if (rpAge ~= nil) then strCharacterSheet = strCharacterSheet.. string.format(ktCSstrings.Age,  strLabelColor, strEntryColor, rpAge) end
-	if (rpHeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Height,  strLabelColor, strEntryColor, rpHeight) end
-	if (rpWeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Weight,  strLabelColor, strEntryColor, rpWeight) end
-	if (rpJob ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Job,  strLabelColor, strEntryColor, rpJob) end
-	if (rpShortDesc ~= nil) then strCharacterSheet = strCharacterSheet..string.format(ktCSstrings.Description,  strLabelColor, strEntryColor, rpShortDesc) end
+	if (rpGender ~= nil) then strCharacterSheet = strCharacterSheet..string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Gender: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",  strLabelColor, strEntryColor, rpGender) end
+	if (rpAge ~= nil) then strCharacterSheet = strCharacterSheet.. string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Age: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",  strLabelColor, strEntryColor, rpAge) end
+	if (rpHeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Height: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",  strLabelColor, strEntryColor, rpHeight) end
+	if (rpWeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Weight: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",  strLabelColor, strEntryColor, rpWeight) end
+	if (rpJob ~= nil) then strCharacterSheet = strCharacterSheet..string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Occupation: <P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",  strLabelColor, strEntryColor, rpJob) end
+	if (rpShortDesc ~= nil) then strCharacterSheet = strCharacterSheet..string.format("<P font=\"CRB_Interface12_BO\" TextColor=\"%s\">Description: <BR /><P font=\"CRB_Interface12_BO\" TextColor=\"%s\">%s</P></P>",  strLabelColor, strEntryColor, rpShortDesc) end
 
 	local strCharacterBio
 	
@@ -695,6 +682,7 @@ end
 
 function PDA:OnCharacterSheetClose(wndHandler, wndControl)
 	self.wndCS:Show(false)
+	self.wndCS:FindChild("wnd_Tabs:btn_Profile"):SetCheck(true)
 end
 
 -----------------------------------------------------------------------------------------------
@@ -730,7 +718,8 @@ end
 
 function PDA:OnStatusShow(wndHandler, wndControl)
 	if RPCore then
-		local rpState = RPCore:GetLocalTrait("rpflag") or 1
+		local rpState = RPCore:GetLocalTrait("rpflag")
+		if rpState == nil then rpState = 0 end
 		for i = 1, 3 do
 			local check = RPCore:HasBitFlag(rpState,i)
 			self.wndMain:FindChild("wnd_Status:input_b_RoleplayToggle" .. i):SetCheck(check)
