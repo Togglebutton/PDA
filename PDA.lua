@@ -78,89 +78,40 @@ local ktRaceSprites =
 
 local knDescriptionMax = 250
 local knBioMax = 2500
-local knTargetRange = 40
+local knTargetRange = 50
 local knAnchor = 1
+local nVersion
+
 -----------------------------------------------------------------------------------------------
 -- Local Functions
 -----------------------------------------------------------------------------------------------
-local function BuildFontDropDown(self, wndButton)
-	local wndDDList = wndButton:FindChild("ddList")
-	local tGameFontList = Apollo.GetGameFonts()
-	local tFontList = {}
-	
-	for i, v in pairs(tGameFontList) do
-		if string.find(v.name, "CRB_Interface%d?%d") then
-			table.insert(tFontList, v.name)
-		elseif string.find(v.name, "CRB_Header%d?%d") then
-			table.insert(tFontList, v.name)
-		end
-	end		
-	table.sort(tFontList)
-	-- from hhtp://lua-users.org/wiki/TableUtils
-	
-	local function table_count(tt, item)
-	  local count
-	  count = 0
-	  for ii,xx in pairs(tt) do
-		if item == xx then count = count + 1 end
-	  end
-	  return count
-	end
-	
-	local function table_unique(tt)
-	  local newtable
-	  newtable = {}
-	  for ii,xx in ipairs(tt) do
-		if(table_count(newtable, xx) == 0) then
-		  newtable[#newtable+1] = xx
-		end
-	  end
-	  return newtable
-	end
-	
-	tFontList = table_unique(tFontList)
-	
-	for i, v in pairs(tFontList) do
-		local wnd = Apollo.LoadForm(self.xmlDoc, "DropDownItemForm", wndDDList, self)
-		wnd:SetText(v)
-		wnd:SetName("btn_"..v)
-		wnd:SetFont(v)
-	end
-	
-	wndDDList:ArrangeChildrenVert()
-	wndDDList:Show(false, true)
-end
 
-local function SetDDSelectByName(self, wndDDList, strName)
-	local tButtonList = wndDDList:GetChildren()
-	for i,v in pairs(tButtonList) do
-		if v:GetName() == "btn_"..strName then
-			wndDDList:SetRadioSelButton("DDList", v)
-			return v
-		end
+local function DistanceToUnit(unitTarget)
+	--if self.bUseDistance ~= true then return nil end
+	
+	local unitPlayer = GameLib.GetPlayerUnit()
+	if type(unitTarget) == "string" then
+		unitTarget = GameLib.GetPlayerUnitByName(tostring(unitTarget))
 	end
-end
-
-local function BuildHeadingMenu(self, tTag)
-	if type(tTag) == "table" and tTag.align and tTag.color and tTag.tag and tTag.font then
-		local wnd = Apollo.LoadForm(self.xmlDoc, "HeaderOptionsForm", self.wndOptions:FindChild("wnd_ScrollFrame:group_BioMarkupStyles") , self)
-		wnd:FindChild("wnd_label"):SetText(tTag.tag)
-		wnd:SetName("wnd_"..tTag.tag)
-		wnd:FindChild("btn_DDAlign:ddList"):Show(false)	
-		local wndButton = wnd:FindChild("btn_DDFont")
-		BuildFontDropDown(self, wndButton)
-		wnd:FindChild("btn_DDFont"):SetText(tTag.font)
-		SetDDSelectByName(self, wnd:FindChild("btn_DDFont:ddList"), tTag.font)
-		
-		wnd:FindChild("btn_DDAlign"):SetText(tTag.align)
-		SetDDSelectByName(self, wnd:FindChild("btn_DDAlign:ddList"), tTag.align)
-		
-		wnd:FindChild("btn_Color:swatch"):SetBGColor(tTag.color)	
-		local sampleTest = string.format("<P Align=\"%s\" Font=\"%s\" TextColor=\"%s\"> {%s} Text Sample</P>",tTag.align, tTag.font, tTag.color, tTag.tag)
-		wnd:FindChild("wnd_Sample"):SetAML(sampleTest)
+	
+	if not unitTarget or not unitPlayer then
+		return 0
 	end
-end
 
+	tPosTarget = unitTarget:GetPosition()
+	tPosPlayer = unitPlayer:GetPosition()
+
+	if tPosTarget == nil or tPosPlayer == nil then
+		return 0
+	end
+
+	local nDeltaX = tPosTarget.x - tPosPlayer.x
+	local nDeltaY = tPosTarget.y - tPosPlayer.y
+	local nDeltaZ = tPosTarget.z - tPosPlayer.z
+
+	local nDistance = math.floor(math.sqrt((nDeltaX ^ 2) + (nDeltaY ^ 2) + (nDeltaZ ^ 2)))
+	return nDistance
+end
 -----------------------------------------------------------------------------------------------
 -- Initialization
 -----------------------------------------------------------------------------------------------
@@ -177,6 +128,7 @@ function PDA:new(o)
 	for i,v in pairs (ktPDAOptions) do
 		o.tPDAOptions[i] = v
 	end
+		
 	self.unitPlayer = GameLib.GetPlayerUnit()
 	self.nMaxRange = 40
     return o
@@ -197,6 +149,8 @@ end
 function PDA:OnLoad()
 	self.xmlDoc = XmlDoc.CreateFromFile("PDA.xml")
 	self.xmlDoc:RegisterCallback("OnDocumentLoaded", self)
+	nVersion = XmlDoc.CreateFromFile("toc.xml"):ToTable().Version
+	nVersion = tonumber(nVersion)
 end
 
 function PDA:OnDocumentLoaded()
@@ -269,15 +223,18 @@ function PDA:OnConfigure()
 	self.wndOptions:Show(true)
 end
 
-function PDA:ClearCache()
-	RPCore:ClearCachedPlayerList()
-end
-
 -----------------------------------------------------------------------------------------------
 -- PDA Functions
 -----------------------------------------------------------------------------------------------
 function PDA:OnPDAOn()
 	self.wndMain:Show(true) -- show the window
+	if type(nVersion) == "number" then
+		Print("PDA: "..nVersion)
+	end
+end
+
+function PDA:ClearCache()
+	RPCore:ClearCachedPlayerList()
 end
 
 -----------------------------------------------------------------------------------------------
@@ -368,44 +325,25 @@ function PDA:OnUnitDestroyed(unitOwner)
 	end
 end
 
+function PDA:ScaleNameplate(tNameplate)
+	if tNameplate.unitOwner:IsThePlayer() then return end
+	local wndNameplate = tNameplate.wndNameplate
+	local nDistance = DistanceToUnit(tNameplate.unitOwner)
+	local fDistancePercentage = ((knTargetRange / nDistance) - 0.5)
+	if fDistancePercentage > 1 then
+		fDistancePercentage = 1
+	end
+	wndNameplate:SetScale(fDistancePercentage)
+end
+
 function PDA:RefreshPlates()
 	for idx, tNameplate in pairs(self.arUnit2Nameplate) do
-		local bNewShow = self:HelperVerifyVisibilityOptions(tNameplate) and self:CheckDrawDistance(tNameplate)
+		local bNewShow = self:HelperVerifyVisibilityOptions(tNameplate) and (DistanceToUnit(tNameplate.unitOwner) <= knTargetRange)
 		if bNewShow ~= tNameplate.bShow then
 			tNameplate.wndNameplate:Show(bNewShow, false)
 			tNameplate.bShow = bNewShow
 		end
 		self:DrawNameplate(tNameplate)
-	end
-end
-
-function PDA:CheckDrawDistance(tNameplate)
-	local unitPlayer = self.unitPlayer
-	local unitOwner = tNameplate.unitOwner
-	
-	if not unitOwner or not unitPlayer then
-	    return false
-	end
-
-	tPosTarget = unitOwner:GetPosition()
-	tPosPlayer = unitPlayer:GetPosition()
-
-	if tPosTarget == nil or tPosPlayer == nil then
-		return
-	end
-
-	local nDeltaX = tPosTarget.x - tPosPlayer.x
-	local nDeltaY = tPosTarget.y - tPosPlayer.y
-	local nDeltaZ = tPosTarget.z - tPosPlayer.z
-
-	local nDistance = (nDeltaX * nDeltaX) + (nDeltaY * nDeltaY) + (nDeltaZ * nDeltaZ)
-
-	if tNameplate.bIsTarget or tNameplate.bIsCluster then
-		bInRange = nDistance < knTargetRange
-		return bInRange
-	else
-		bInRange = nDistance < (self.nMaxRange * self.nMaxRange) -- squaring for quick maths
-		return bInRange
 	end
 end
 
@@ -437,7 +375,7 @@ function PDA:OnUnitOcclusionChanged(wndHandler, wndControl, bOccluded)
 end
 
 function PDA:UpdateNameplateVisibility(tNameplate)
-	local bNewShow = self:HelperVerifyVisibilityOptions(tNameplate) and self:CheckDrawDistance(tNameplate)
+	local bNewShow = self:HelperVerifyVisibilityOptions(tNameplate) and (DistanceToUnit(tNameplate.unitOwner) <= knTargetRange)
 	if bNewShow ~= tNameplate.bShow then
 		tNameplate.wndNameplate:Show(bNewShow, false)
 		tNameplate.bShow = bNewShow
@@ -469,7 +407,7 @@ function PDA:DrawNameplate(tNameplate)
 		wndNameplate:SetUnit(unitOwner, knAnchor)
 	end
 
-	local bShowNameplate = self:CheckDrawDistance(tNameplate) and self:HelperVerifyVisibilityOptions(tNameplate)
+	local bShowNameplate = (DistanceToUnit(tNameplate.unitOwner) <= knTargetRange) and self:HelperVerifyVisibilityOptions(tNameplate)
 	wndNameplate:Show(bShowNameplate, false)
 	if not bShowNameplate then
 		return
@@ -480,6 +418,10 @@ function PDA:DrawNameplate(tNameplate)
 		local tAnchorOffsets = {wndNameplate:GetAnchorOffsets()}
 		tNameplate.nOffset = self.tPDAOptions.nOffset
 		wndNameplate:SetAnchorOffsets(tAnchorOffsets[1], tAnchorOffsets[2] - tNameplate.nOffset, tAnchorOffsets[3], tAnchorOffsets[4] - tNameplate.nOffset)
+	end
+	
+	if self.tPDAOptions.bDistanceScaling == true then
+		self:ScaleNameplate(tNameplate)
 	end
 	
 	self:DrawRPNamePlate(tNameplate)	
@@ -678,6 +620,7 @@ end
 function PDA:UpdateCharacterSheet(wndHandler, wndControl)
 	local player = self.wndCS:GetData()
 	self.wndCS:FindChild("wnd_CharSheet"):SetAML(self:DrawCharacterSheet(player))
+	self.wndCS:FindChild("wnd_CharSheet"):SetVScrollPos(0)
 end
 
 function PDA:OnCharacterSheetClose(wndHandler, wndControl)
@@ -930,40 +873,7 @@ end
 -----------------------------------------------------------------------------------------------
 
 function PDA:OnOptionsOK()
-	local wndOptions = self.wndOptions:FindChild("wnd_ScrollFrame")
-	local strLabelColor
-	local strEntryColor
-	local bNeedReload = false
-	
-	for i = 0, 7 do
-		local color = wndOptions:FindChild("btn_Color_State"..tostring(i)):FindChild("swatch"):GetBGColor():ToTable()
-		self.tPDAOptions.tRPColors[i] = GeminiColor:RGBAPercToHex(color.r, color.g, color.b, color.a)
-	end
-	
-	local tColor = wndOptions:FindChild("btn_Color_Name"):FindChild("swatch"):GetBGColor():ToTable()
-	strLabelColor = GeminiColor:RGBAPercToHex(tColor.r, tColor.g, tColor.b, tColor.a)
-	
-	local tColor2 = wndOptions:FindChild("btn_Color_Title"):FindChild("swatch"):GetBGColor():ToTable()
-	strEntryColor = GeminiColor:RGBAPercToHex(tColor2.r, tColor2.g, tColor2.b, tColor2.a)
-	
-	local wndStyles = wndOptions:FindChild("group_BioMarkupStyles")
-	
-	for i,v in pairs(self.tPDAOptions.tMarkupStyles) do
-		local wndStylePanel = wndStyles:FindChild("wnd_"..v.tag)
-		local strFont = wndStylePanel:FindChild("btn_DDFont:ddList"):GetRadioSelButton("DDList"):GetName()
-		local tColor = wndStylePanel:FindChild("btn_Color:swatch"):GetBGColor():ToTable()
-		local strColor = GeminiColor:RGBAPercToHex(tColor.r, tColor.g, tColor.b, tColor.a) 
-		local strAlign = wndStylePanel:FindChild("btn_DDAlign:ddList"):GetRadioSelButton("DDList"):GetName()
-		v.align = string.sub(strAlign,5)
-		v.color = strColor
-		v.font = string.sub(strFont, 5)
-	end
-	
-	self.tPDAOptions.tCSColors.strLabelColor = strLabelColor
-	self.tPDAOptions.tCSColors.strEntryColor = strEntryColor
-	self.tPDAOptions.nOffset = wndOptions:FindChild("input_n_Offset"):GetValue()
-	self.tPDAOptions.bShowMyNameplate = wndOptions:FindChild("input_b_ShowPlayerNameplate"):IsChecked()
-	
+		
 	self.wndOptions:Show(false) -- hide the window
 	self:UpdateMyNameplate()
 end
@@ -973,53 +883,8 @@ function PDA:OnOptionsCancel()
 end
 
 function PDA:OnShowOptions(wndHandler, wndControl)
-	if wndHandler ~= wndControl then return end
+	if wndControl ~= self.wndOptions then return end
 	local wndOptions = self.wndOptions:FindChild("wnd_ScrollFrame")
-	
-	for i = 0, 7 do
-		wndOptions:FindChild("btn_Color_State"..tostring(i)):FindChild("swatch"):SetBGColor(self.tPDAOptions.tRPColors[i])
-	end
-	
-	for i,tTag in pairs(self.tPDAOptions.tMarkupStyles) do
-		if type(tTag) == "table" and tTag.align and tTag.color and tTag.tag and tTag.font then
-			local wndStylePanel = wndOptions:FindChild("group_BioMarkupStyles:wnd_"..tTag.tag)
-			wndStylePanel:FindChild("btn_DDFont"):SetText(tTag.font)
-			SetDDSelectByName(self, wndStylePanel:FindChild("btn_DDFont:ddList"), tTag.font)
-			wndStylePanel:FindChild("btn_DDAlign"):SetText(tTag.align)
-			SetDDSelectByName(self, wndStylePanel:FindChild("btn_DDAlign:ddList"), tTag.align)
-			wndStylePanel:FindChild("btn_Color:swatch"):SetBGColor(tTag.color)
-			local sampleTest = string.format("<P Align=\"%s\" Font=\"%s\" TextColor=\"%s\"> {%s} Text Sample</P>",tTag.align, tTag.font, tTag.color, tTag.tag)
-			wndStylePanel:FindChild("wnd_Sample"):SetAML(sampleTest)
-		end
-	end
-	local tCSColors = self.tPDAOptions.tCSColors
-	wndOptions:FindChild("btn_Color_Name"):FindChild("swatch"):SetBGColor(tCSColors.strLabelColor)
-	wndOptions:FindChild("btn_Color_Title"):FindChild("swatch"):SetBGColor(tCSColors.strEntryColor)
-	wndOptions:FindChild("input_b_ShowPlayerNameplate"):SetCheck(self.tPDAOptions.bShowMyNameplate)
-	wndOptions:FindChild("input_n_Offset"):SetMinMax(0,100)
-	wndOptions:FindChild("input_n_Offset"):SetValue(self.tPDAOptions.nOffset or 0)
-	
-	wndOptions:SetFocus()
-	wndOptions:SetVScrollPos(1)
-end
-
-function PDA:UpdateHeadingDisplay()
-	local wndOptions = self.wndOptions:FindChild("wnd_ScrollFrame")
-	for i,tTag in pairs(ktPDAOptions.tMarkupStyles) do
-		local wndStylePanel = wndOptions:FindChild("group_BioMarkupStyles:wnd_"..tTag.tag)
-		local strFont = wndStylePanel:FindChild("btn_DDFont"):GetText()
-		local strAlign = wndStylePanel:FindChild("btn_DDAlign"):GetText()
-		local tColor = wndStylePanel:FindChild("btn_Color"):FindChild("swatch"):GetBGColor():ToTable()
-		local strColor = GeminiColor:RGBAPercToHex(tColor.r, tColor.g, tColor.b, tColor.a)
-		
-		local sampleTest = string.format("<P Align=\"%s\" Font=\"%s\" TextColor=\"%s\"> {%s} Text Sample</P>",strAlign, strFont, strColor, tTag.tag)
-		wndStylePanel:FindChild("wnd_Sample"):SetAML(sampleTest)
-	end	
-end
-
-function PDA:OptionsDDClick(wndHandler, wndControl)
-	local bDDListShown = wndControl:FindChild("ddList"):IsShown()
-	wndControl:FindChild("ddList"):Show(not (bDDListShown))
 end
 
 function PDA:OptionsDDListItemClick(wndHandler, wndControl)
@@ -1074,41 +939,6 @@ function PDA:ResetNameplateColors(wndHandler, wndControl)
 	wndOptions:FindChild("btn_Color_Name:swatch"):SetBGColor(ktPDAOptions.tCSColors.strLabelColor)
 	wndOptions:FindChild("btn_Color_Title:swatch"):SetBGColor(ktPDAOptions.tCSColors.strEntryColor)
 end
-
---[[
-function PDA:StringSubUTF8(str, startChar, numChars)
--- modified from http://wowprogramming.com/snippets/UTF-8_aware_stringsub_7
-	local function chsize(currChar)
-		if not currChar then
-			return 0
-		elseif currChar > 240 then
-			return 4
-		elseif currChar > 225 then
-			return 3
-		elseif currChar > 192 then
-			return 2
-		else
-			return 1
-		end
-	end
-
-	local startIndex = 1
-	while startChar > 1 do
-		local char = string.byte(str, startIndex)
-		startIndex = startIndex + chsize(char)
-		startChar = startChar - 1
-	end
-
-	local currentIndex = startIndex
-
-	while numChars > 0 and currentIndex <= #str do
-		local char = string.byte(str, currentIndex)
-		currentIndex = currentIndex + chsize(char)
-		numChars = numChars -1
-	end
-	return str:sub(startIndex, currentIndex - 1)
-end
-]]
 
 -----------------------------------------------------------------------------------------------
 -- PDA Instance
