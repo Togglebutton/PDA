@@ -4,7 +4,7 @@
     <Script Name="PDA.lua"/>
     <Form Name="GeminiColor\GeminiColor.xml"/>
     <Script Name="GeminiColor\GeminiColor.lua"/>
-	<Form Name="GeminiRichText\GeminiRichText.xml"/>
+    <Form Name="GeminiRichText\GeminiRichText.xml"/>
     <Script Name="GeminiRichText\GeminiRichText.lua"/>
     <Script Name="GeminiPackages\GeminiPackages.lua"/>
     <Script Name="RPCore\RPCore.lua"/>
