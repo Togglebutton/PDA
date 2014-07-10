@@ -15,10 +15,24 @@ local PDA = {}
 local RPCore
 local GeminiColor
 local GeminiRichText
+local PerspectivePlates
 
 -----------------------------------------------------------------------------------------------
 -- Constants
 -----------------------------------------------------------------------------------------------
+local ktLocalizationStrings = {
+	enUS = {
+		_name = "Name",
+		_title = "Title",
+		_species = "Species",
+		_gender = "Gender",
+		_age = "Age",
+		_height = "Height",
+		_build = "Build",
+		_occupation = "Occupation",
+		_description = "Description",
+	},
+}
 
 local karRaceToString =
 {
@@ -39,14 +53,14 @@ local karGenderToString =
 }
 
 local ktNamePlateOptions = {
-	nXoffset = -50,
+	nXoffset = 0,
 	nYoffset = -50,
 	bShowMyNameplate = true,
-	bShowNames = false,
+	bShowNames = true,
 	bShowTitles = true,
 	bScaleNameplates = false,
 	nNameplateDistance = 50,
-	nAnchor = 36,
+	nAnchor = 1,
 }
 
 local ktStateColors = {
@@ -61,16 +75,16 @@ local ktStateColors = {
 }
 
 local ktStyles = {
-	{tag = "h1", font = "CRB_Interface14_BBO", color = "ffffffff", align = "Center"},
-	{tag = "h2", font = "CRB_Interface12_BO", color = "ffffffff", align = "Left"},
-	{tag = "h3", font = "CRB_Interface12_I", color = "ffffffff", align = "Left"},
-	{tag = "p", font = "CRB_Interface12", color = "ffaaaaaa", align = "Left"},
-	{tag = "li", font = "CRB_Interface12", color = "ffaaaaaa", align = "Left", bullet = "●", indent = "  "},
-	{tag = "alien", font = "CRB_AlienMedium", color = "ffaaaaaa", align = "Left"},
-	{tag = "name", font = "CRB_Interface12_BO", color = "FF009999", align = "Center"},
-	{tag = "title", font = "CRB_Interface10", color = "FF99FFFF", align = "Center"},
-	{tag = "csentry", font = "CRB_Interface12_BO", color = "FF009999", align = "Left"},
-	{tag = "cscontents", font = "CRB_Interface12", color = "FF99FFFF", align = "Left"},
+	{tag = "h1", font = "CRB_Interface14_BBO", color = "FF00FA9A", align = "Center"},
+	{tag = "h2", font = "CRB_Interface12_BO", color = "FF00FFFF", align = "Left"},
+	{tag = "h3", font = "CRB_Interface12_I", color = "FF00FFFF", align = "Left"},
+	{tag = "p", font = "CRB_Interface12", color = "FF00FFFF", align = "Left"},
+	{tag = "li", font = "CRB_Interface12", color = "FF00FFFF", align = "Left", bullet = "●", indent = "  "},
+	{tag = "alien", font = "CRB_AlienMedium", color = "FF00FFFF", align = "Left"},
+	{tag = "name", font = "CRB_Interface12_BO", color = "FF00FF7F", align = "Center"},
+	{tag = "title", font = "CRB_Interface10", color = "FF00FFFF", align = "Center"},
+	{tag = "csentry", font = "CRB_Header13_O", color = "FF00FFFF", align = "Left"},
+	{tag = "cscontents", font = "CRB_Interface12_BO", color = "FF00FF7F", align = "Left"},
 }
 
 local ktRaceSprites =
@@ -84,10 +98,6 @@ local ktRaceSprites =
 	[GameLib.CodeEnumRace.Mordesh] = {[0] = "CRB_CharacterCreateSprites:btnCharC_RG_MoMFlyby", [1] = "CRB_CharacterCreateSprites:btnCharC_RG_MoMFlyby"},
 }
 
-local knDescriptionMax = 250
-local knBioMax = 2500
-local knTargetRange = 50
-local knAnchor = 1
 local nVersion
 
 -----------------------------------------------------------------------------------------------
@@ -120,6 +130,59 @@ local function DistanceToUnit(unitTarget)
 	local nDistance = math.floor(math.sqrt((nDeltaX ^ 2) + (nDeltaY ^ 2) + (nDeltaZ ^ 2)))
 	return nDistance
 end
+
+local function GetLocale()
+	local strCancel = Apollo.GetString(1)
+	if strCancel == "Abbrechen" and ktLocalizationStrings["frFR"] then
+		return "frFR"
+	elseif strCancel == "Annuler" and ktLocalizationStrings["deDE"] then
+		return "deDE"
+	else
+		return "enUS"
+	end
+end
+
+local function strsplit(sep, str)
+        local sep, fields = sep or ":", {}
+        local pattern = string.format("([^%s]+)", sep)
+        string.gsub(str ,pattern, function(c) fields[#fields+1] = c end)
+        return fields
+end
+
+local function CompareVersionNumberTable(tVersionCurrent, tVersionChecking)
+	local nVersionCurrent = tVersionCurrent[1];
+	local nVersionChecking = tVersionChecking[1];
+	nVersionCurrent = tonumber(nVersionCurrent) or 0;
+	nVersionChecking = tonumber(nVersionChecking) or 0;
+
+	if nVersionCurrent > nVersionChecking then
+		return false;
+	elseif nVersionCurrent < nVersionChecking then
+		return true;
+	else --  v1 = nVersionChecking
+		table.remove(tVersionCurrent, 1);
+		table.remove(tVersionChecking, 1);
+		if #(tVersionCurrent) == 0 then
+			return true;
+		elseif #(tVersionChecking) == 0 then
+			return false;
+		else
+			return CompareVersionNumberTable(tVersionCurrent, tVersionChecking);
+		end
+	end
+end
+
+local function CompareVersions(strVersionChecking)
+	local strVersionCurrent = nVersion
+	if not (type(strVersionCurrent) == "string" or type(strVersionCurrent) == "number") then return false end
+	if not (type(strVersionChecking) == "string" or type(strVersionChecking) == "number") then return false end
+	local tVersionCurrent = strsplit(".", strVersionCurrent);
+	local tVersionChecking = strsplit(".", strVersionChecking);
+	return CompareVersionNumberTable(tVersionCurrent, tVersionChecking);
+end
+
+
+
 -----------------------------------------------------------------------------------------------
 -- Initialization
 -----------------------------------------------------------------------------------------------
@@ -135,6 +198,7 @@ function PDA:new(o)
 	o.tStyles = {}
 	o.tStateColors = {}
 	o.tNamePlateOptions = {}
+	o.bHideAllNameplates = false
 	
 	self.unitPlayer = GameLib.GetPlayerUnit()
     return o
@@ -144,8 +208,10 @@ function PDA:Init()
 	local bHasConfigureButton = true
 	local strConfigureButtonText = "PDA"
 	local tDependencies = {
+	--"RPCore",
 	"GeminiColor",
-	"GeminiRichText"
+	"GeminiRichText",
+	"PerspectivePlates",
 	}
     Apollo.RegisterAddon(self, bHasConfigureButton, strConfigureButtonText, tDependencies)
 end
@@ -153,17 +219,25 @@ end
 -----------------------------------------------------------------------------------------------
 -- PDA Default Apollo Methods
 -----------------------------------------------------------------------------------------------
+function PDA:OnDependencyError(strDep, strError)
+	if strDep == "PerspectivePlates" then
+		return true
+	else
+		return false
+	end
+end
+
 function PDA:OnLoad()
 	self.xmlDoc = XmlDoc.CreateFromFile("PDA.xml")
 	self.xmlDoc:RegisterCallback("OnDocumentLoaded", self)
 	nVersion = XmlDoc.CreateFromFile("toc.xml"):ToTable().Version
-	nVersion = tonumber(nVersion)
 end
 
 function PDA:OnDocumentLoaded()
 
 	GeminiColor = Apollo.GetPackage("GeminiColor").tPackage
 	GeminiRichText = Apollo.GetPackage("GeminiRichText").tPackage
+	PerspectivePlates = Apollo.GetAddon("PerspectivePlates")
 	RPCore = _G["GeminiPackages"]:GetPackage("RPCore-1.1")
 	
 	self.wndMain = Apollo.LoadForm(self.xmlDoc, "PDAEditForm", nil, self)
@@ -177,12 +251,15 @@ function PDA:OnDocumentLoaded()
 	self.wndMarkupEditor = GeminiRichText:CreateMarkupEditControl(self.wndMain:FindChild("wnd_EditBackground:wnd_Editor"), "Holo", { nCharacterLimit = 2500, }, self)
 
 	self.wndOptions = Apollo.LoadForm(self.xmlDoc, "OptionsForm", nil, self)
-	self.wndStyleEditor = GeminiRichText:CreateMarkupStyleEditor(self.wndOptions:FindChild("group_Styles"):FindChild("wnd_Styles"), ktStyles)
+	self.wndStyleEditor = GeminiRichText:CreateMarkupStyleEditor(self.wndOptions:FindChild("group_Styles"):FindChild("wnd_Styles"), self.tStyles)
+	self.wndOptions:FindChild("wnd_ScrollFrame:group_NameplatePosition"):FindChild("input_n_OffsetX"):SetMinMax(-100, 100, 0)
+	self.wndOptions:FindChild("wnd_ScrollFrame:group_NameplatePosition"):FindChild("input_n_OffsetY"):SetMinMax(-100, 100, 0)
 	self.wndOptions:Show(false)
 	
 	self.wndCS = Apollo.LoadForm(self.xmlDoc, "CharSheetForm", nil, self)
 	self.wndCS:FindChild("btn_Help:wnd_DD"):Show(false)
 	self.wndCS:FindChild("btn_BioLink:wnd_DD"):Show(false)
+	self.wndCS:FindChild("btn_BioLink"):Enable(false)
 	self.wndCS:Show(false)
 
 	Apollo.LoadSprites("PDA_Sprites.xml", "PDA_Sprites")
@@ -194,14 +271,16 @@ function PDA:OnDocumentLoaded()
 	Apollo.RegisterEventHandler("RPCore_VersionUpdated", "OnRPCoreCallback", self)
 	Apollo.RegisterEventHandler("ChangeWorld", "OnWorldChange", self)
 
-	Apollo.RegisterSlashCommand("pda", "OnPDAOn", self)
+	Apollo.RegisterSlashCommand("pda", "OnPDASlashCommand", self)
 	
-	Apollo.RegisterTimerHandler("PDA_RefreshTimer","RefreshPlates",self)
-	Apollo.RegisterTimerHandler("PDA_UpdateMyTimer","UpdateMyNameplate",self)
-	Apollo.RegisterTimerHandler("LoadIconTimer", "OnLoadIcons", self)
+	-- time, repeat, callback, self
+	self.tmrNamePlareRefresh = ApolloTimer.Create(1, true, "RefreshPlates", self)
+	self.tmrUpdateMyNameplate = ApolloTimer.Create(5, false, "UpdateMyNameplate", self)
+	self.tmrRefreshCharacterSheet = ApolloTimer.Create(5, true, "UpdateCharacterSheet", self)
+	self.tmrRefreshCharacterSheet:Stop()
 	
-	Apollo.CreateTimer("PDA_RefreshTimer", 1, true)
-	Apollo.CreateTimer("PDA_UpdateMyTimer", 5, false)
+	self.locale = GetLocale()
+	--Event_FireGenericEvent("GenericEvent_PerspectivePlates_RegisterOffsets", -15 + self.tNamePlateOptions.nXoffset, -15 + self.tNamePlateOptions.nYoffset, 15 + self.tNamePlateOptions.nXoffset, 15 + self.tNamePlateOptions.nYoffset)
 end
 
 function PDA:OnInterfaceMenuListHasLoaded()
@@ -257,20 +336,22 @@ end
 -----------------------------------------------------------------------------------------------
 -- PDA Functions
 -----------------------------------------------------------------------------------------------
-function PDA:OnPDAOn()
-	local bAlt = Apollo.IsAltKeyDown()
-	local bShift = Apollo.IsShiftKeyDown()
-	local bCtrl = Apollo.IsControlKeyDown()
-	
-	if bAlt == true and bShift == true then
-		Print("Alt Key Down!")
-		Print("Shift Key Down!")
-	elseif bCtrl == true then
-		Print("Ctrl Key Down!")
-	elseif bShift == true then
-		Print("Shift Key Down!")
+function PDA:OnPDAOn(strCommand, ...)
+	self.wndMain:Invoke() -- show the window
+	--Print(tostring(CompareVersions("2.0.1")))
+end
+
+function PDA:OnPDASlashCommand(strCommand, strArgs)
+	local tArgs = strsplit(" ", strArgs)
+	if tArgs[1] == "on" then
+		self.bHideAllNameplates = false
+	elseif tArgs[1] == "off" then
+		self.bHideAllNameplates = true
+	elseif tArgs[1] == "status" then
+		local rpState = tonumber(tArgs[2])
+		RPCore:SetLocalTrait("rpflag",rpState)
 	else
-		self.wndMain:Show(true) -- show the window
+		self.wndMain:Show(true)
 	end
 end
 
@@ -283,7 +364,7 @@ end
 -----------------------------------------------------------------------------------------------
 function PDA:UpdateMyNameplate()
 	self.unitPlayer = GameLib.GetPlayerUnit()
-	if ktNamePlateOptions.bShowMyNameplate then
+	if self.tNamePlateOptions.bShowMyNameplate then
 		self:OnRPCoreCallback({player = self.unitPlayer:GetName()})
 	end
 end
@@ -312,7 +393,7 @@ function PDA:OnWorldChange()
 		self.arWnd2Nameplate[i] = nil
 		self.arUnit2Nameplate[i] = nil
 	end
-	Apollo.StartTimer("PDA_UpdateMyTimer")
+	self.tmrUpdateMyNameplate:Start()
 end
 
 function PDA:OnRPCoreCallback(tArgs)
@@ -326,7 +407,7 @@ function PDA:OnRPCoreCallback(tArgs)
 	
 	local wnd = Apollo.LoadForm(self.xmlDoc, "OverheadForm", "InWorldHudStratum", self)
 	wnd:Show(false, true)
-	wnd:SetUnit(unit, ktNamePlateOptions.nAnchor)
+	wnd:SetUnit(unit, self.tNamePlateOptions.nAnchor)
 	wnd:SetName("wnd_"..strUnitName)
 	
 	local tNameplate =
@@ -373,7 +454,7 @@ function PDA:ScaleNameplate(tNameplate)
 	if tNameplate.unitOwner:IsThePlayer() then return end
 	local wndNameplate = tNameplate.wndNameplate
 	local nDistance = DistanceToUnit(tNameplate.unitOwner)
-	local fDistancePercentage = ((knTargetRange / nDistance) - 0.5)
+	local fDistancePercentage = ((self.tNamePlateOptions.nNameplateDistance / nDistance) - 0.5)
 	if fDistancePercentage > 1 then
 		fDistancePercentage = 1
 	end
@@ -382,12 +463,17 @@ end
 
 function PDA:RefreshPlates()
 	for idx, tNameplate in pairs(self.arUnit2Nameplate) do
-		local bNewShow = self:HelperVerifyVisibilityOptions(tNameplate) and (DistanceToUnit(tNameplate.unitOwner) <= knTargetRange)
-		if bNewShow ~= tNameplate.bShow then
-			tNameplate.wndNameplate:Show(bNewShow, false)
-			tNameplate.bShow = bNewShow
+		if self.bHideAllNameplates == true then
+			tNameplate.wndNameplate:Show(false, false)
+			tNameplate.bShow = false
+		else
+			local bNewShow = self:HelperVerifyVisibilityOptions(tNameplate) and (DistanceToUnit(tNameplate.unitOwner) <= self.tNamePlateOptions.nNameplateDistance)
+			if bNewShow ~= tNameplate.bShow then
+				tNameplate.wndNameplate:Show(bNewShow, false)
+				tNameplate.bShow = bNewShow
+			end
+			self:DrawNameplate(tNameplate)
 		end
-		self:DrawNameplate(tNameplate)
 	end
 end
 
@@ -404,7 +490,7 @@ function PDA:HelperVerifyVisibilityOptions(tNameplate)
 	end
 	
 	if unitOwner:IsThePlayer() then
-		return ktNamePlateOptions.bShowMyNameplate
+		return self.tNamePlateOptions.bShowMyNameplate
 	end
 	
 	return true
@@ -419,7 +505,7 @@ function PDA:OnUnitOcclusionChanged(wndHandler, wndControl, bOccluded)
 end
 
 function PDA:UpdateNameplateVisibility(tNameplate)
-	local bNewShow = self:HelperVerifyVisibilityOptions(tNameplate) and (DistanceToUnit(tNameplate.unitOwner) <= knTargetRange)
+	local bNewShow = self:HelperVerifyVisibilityOptions(tNameplate) and (DistanceToUnit(tNameplate.unitOwner) <= self.tNamePlateOptions.nNameplateDistance)
 	if bNewShow ~= tNameplate.bShow then
 		tNameplate.wndNameplate:Show(bNewShow, false)
 		tNameplate.bShow = bNewShow
@@ -448,22 +534,28 @@ function PDA:DrawNameplate(tNameplate)
 	if unitOwner:IsMounted() and wndNameplate:GetUnit() == unitOwner then
 		wndNameplate:SetUnit(unitOwner:GetUnitMount(), 1)
 	elseif not unitOwner:IsMounted() and wndNameplate:GetUnit() ~= unitOwner then
-		wndNameplate:SetUnit(unitOwner, ktNamePlateOptions.nAnchor)
+		wndNameplate:SetUnit(unitOwner, self.tNamePlateOptions.nAnchor)
 	end
 
-	local bShowNameplate = (DistanceToUnit(tNameplate.unitOwner) <= ktNamePlateOptions.nNameplateDistance) and self:HelperVerifyVisibilityOptions(tNameplate)
+	local bShowNameplate = (DistanceToUnit(tNameplate.unitOwner) <= self.tNamePlateOptions.nNameplateDistance) and self:HelperVerifyVisibilityOptions(tNameplate)
 	wndNameplate:Show(bShowNameplate, false)
 	if not bShowNameplate then
 		return
 	end
 	
-	if ktNamePlateOptions.nXoffset or ktNamePlateOptions.nYoffset then
-		wndNameplate:SetAnchorOffsets(-15 + (ktNamePlateOptions.nXoffset or 0), -15 + (ktNamePlateOptions.nYoffset or 0), 15 + (ktNamePlateOptions.nXoffset or 0), 15 + (ktNamePlateOptions.nYoffset or 0))
+	if self.tNamePlateOptions.nXoffset or self.tNamePlateOptions.nYoffset then
+		wndNameplate:SetAnchorOffsets(-15 + (self.tNamePlateOptions.nXoffset or 0), -15 + (self.tNamePlateOptions.nYoffset or 0), 15 + (self.tNamePlateOptions.nXoffset or 0), 15 + (self.tNamePlateOptions.nYoffset or 0))
 	end
 	
-	if ktNamePlateOptions.bScaleNameplates == true then
-		self:ScaleNameplate(tNameplate)
+	if self.tNamePlateOptions.bScaleNameplates == true then
+		--if PerspectivePlates ~= nil then 
+		--	PerspectivePlates:OnRequestedResize(tNameplate)
+		--else
+			self:ScaleNameplate(tNameplate)
+		--end
 	end
+	
+	--Event_FireGenericEvent("GenericEvent_PerspectivePlates_PerspectiveResize", tNameplate)
 	
 	self:DrawRPNamePlate(tNameplate)
 end
@@ -477,20 +569,21 @@ function PDA:DrawRPNamePlate(tNameplate)
 	local wndData = wndNameplate:FindChild("wnd_Data")
 	local btnRP = wndNameplate:FindChild("btn_RP")
 	
-	
 	rpFullname = RPCore:GetTrait(unitName,"fullname") or unitName
 	rpTitle = RPCore:FetchTrait(unitName,"title")
 	rpStatus = RPCore:GetTrait(unitName, "rpflag")
 	
 	local strNameString = ""
-	if ktNamePlateOptions.bShowNames == true then
+	if self.tNamePlateOptions.bShowNames == true then
 		strNameString = strNameString .. string.format("{name}%s{/name}\n", rpFullname)
-		if ktNamePlateOptions.bShowTitles == true and rpTitle ~= nil then
+		if self.tNamePlateOptions.bShowTitles == true and rpTitle ~= nil then
 			strNameString = strNameString .. string.format("{title}%s{/title}", rpTitle)
 		end	
-	end	
+	end
+	
+	local strNamePlate = GeminiRichText:ParseMarkup(strNameString, self.tStyles)
 
-	wndData:SetAML(GeminiRichText:ParseMarkup(strNameString, ktStyles))
+	wndData:SetAML(strNamePlate)
 	wndData:SetHeightToContentHeight()
 	
 	if rpStatus == nil then rpStatus = 0 end
@@ -498,9 +591,9 @@ function PDA:DrawRPNamePlate(tNameplate)
 	local strState = RPCore:FlagsToString(rpStatus)
 	local xmlTooltip = XmlDoc.new()
 	xmlTooltip:StartTooltip(Tooltip.TooltipWidth)
-	if ktNamePlateOptions.bShowNames == false then
+	if self.tNamePlateOptions.bShowNames == false then
 		xmlTooltip:AddLine(rpFullname, "FF009999", "CRB_InterfaceMedium_BO")
-		if ktNamePlateOptions.bShowTitles == true and rpTitle ~= nil then
+		if self.tNamePlateOptions.bShowTitles == true and rpTitle ~= nil then
 			xmlTooltip:AddLine(rpTitle, "FF99FFFF", "CRB_InterfaceMedium_BO")
 		end
 		xmlTooltip:AddLine("――――――――――――――――――――", "FF99FFFF", "CRB_InterfaceMedium_BO")
@@ -513,6 +606,17 @@ end
 -----------------------------------------------------------------------------------------------
 -- PDA Character Sheet Functions
 -----------------------------------------------------------------------------------------------
+
+function PDA:OnCharacterSheetShow(wndHandler, wndControl)
+	if wndHandler ~= wndControl then return end
+	self.tmrRefreshCharacterSheet:Start()
+end
+
+function PDA:OnCharacterSheetClose(wndHandler, wndControl)
+	if wndHandler ~= wndControl then return end
+	self.tmrRefreshCharacterSheet:Stop()
+end
+
 function PDA:DrawCharacterProfile(unitName, unit)
 
 	local rpFullname, rpTitle, rpShortDesc, rpStateString, rpHeight, rpWeight, rpAge, rpRace, rpGender, rpJob
@@ -548,27 +652,27 @@ function PDA:DrawCharacterProfile(unitName, unit)
 	local strEntryColor = "FF99FFFF"
 	
 	if (rpFullname ~= nil) then
-		strCharacterSheet = strCharacterSheet .. string.format("{csentry}Name:  {cscontents}%s{/cscontents}{/csentry}", rpFullname)
+		strCharacterSheet = strCharacterSheet .. string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._name, rpFullname)
 	end
 	
 	if (rpTitle ~= nil) then
-		strCharacterSheet = strCharacterSheet .. string.format("{csentry}Title:  {cscontents}%s{/cscontents}{/csentry}", rpTitle)
+		strCharacterSheet = strCharacterSheet .. string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._title, rpTitle)
 	end
 	
 	if (rpRace ~= nil) then 
 		if type(rpRace) == "string" then
-			strCharacterSheet = strCharacterSheet .. string.format("{csentry}Species:  {cscontents}%s{/cscontents}{/csentry}", rpRace)
+			strCharacterSheet = strCharacterSheet .. string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._species , rpRace)
 		elseif type(rpRace) == "number" then
-			strCharacterSheet = strCharacterSheet.. string.format("{csentry}Species:  {cscontents}%s{/cscontents}{/csentry}", karRaceToString[rpRace])
+			strCharacterSheet = strCharacterSheet.. string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._species , karRaceToString[rpRace])
 		end
 	end
 	
-	if (rpGender ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}Gender:  {cscontents}%s{/cscontents}{/csentry}",rpGender) end
-	if (rpAge ~= nil) then strCharacterSheet = strCharacterSheet.. string.format("{csentry}Age:  {cscontents}%s{/cscontents}{/csentry}",  rpAge) end
-	if (rpHeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}Height:  {cscontents}%s{/cscontents}{/csentry}",  rpHeight) end
-	if (rpWeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}Build:  {cscontents}%s{/cscontents}{/csentry}",  rpWeight) end
-	if (rpJob ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}Occupation:  {cscontents}%s{/cscontents}{/csentry}",  rpJob) end
-	if (rpShortDesc ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}Description:  {cscontents}%s{/cscontents}{/csentry}",  rpShortDesc) end
+	if (rpGender ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._gender ,rpGender) end
+	if (rpAge ~= nil) then strCharacterSheet = strCharacterSheet.. string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._age ,  rpAge) end
+	if (rpHeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._height ,  rpHeight) end
+	if (rpWeight ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._build ,  rpWeight) end
+	if (rpJob ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}%s:{cscontents}  %s{/cscontents}{/csentry}", ktLocalizationStrings[self.locale]._occupation ,  rpJob) end
+	if (rpShortDesc ~= nil) then strCharacterSheet = strCharacterSheet..string.format("{csentry}%s:{/csentry}{cscontents}%s{/cscontents}", ktLocalizationStrings[self.locale]._description ,  rpShortDesc) end
 	
 	strParsedSheet = GeminiRichText:ParseMarkup(strCharacterSheet, self.tStyles)
 	
@@ -580,7 +684,7 @@ function PDA:DrawCharacterBio(unitName, unit)
 	local  bPublicHistory, rpHistory, strParsedSheet
 	bPublicHistory = RPCore:GetTrait(unitName, "publicBio") or false
 	rpHistory = RPCore:GetTrait(unitName, "biography")
-	
+	Print(rpHistory)
 	if bPublicHistory == true and rpHistory ~= nil then
 		strParsedSheet = GeminiRichText:ParseMarkup(rpHistory, self.tStyles)
 		return strParsedSheet
@@ -591,34 +695,52 @@ function PDA:DrawCharacterBio(unitName, unit)
 end
 
 function PDA:OnProfileClick( wndHandler, wndControl, eMouseButton )
-
+	local unitName = wndControl:GetParent():GetData()
+	local strProfile = self:DrawCharacterProfile(unitName)
+	self.wndCS:FindChild("wnd_CharSheet"):SetAML(strProfile)
+	self.wndCS:FindChild("wnd_CharSheet"):SetData("profile")
 end
 
 function PDA:OnBioClick( wndHandler, wndControl, eMouseButton )
-
+	local unitName = wndControl:GetParent():GetData()
+	local strBio = self:DrawCharacterBio(unitName)
+	if strBio and type(strBio) == "string" then
+		self.wndCS:FindChild("wnd_CharSheet"):SetAML(strBio)
+		self.wndCS:FindChild("wnd_CharSheet"):SetData("bio")
+	end
 end
 
 function PDA:CreateCharacterSheet(wndHandler, wndControl)
 	local tNameplate = wndControl:GetParent():GetData()
 	local unit = tNameplate.unitOwner
 	local unitName = tNameplate.unitName
+	local bPublicBio = RPCore:GetTrait(unitName, "publicBio")
+	self.wndCS:FindChild("btn_ShowBio"):Enable(bPublicBio)
 	self.wndCS:SetData(unitName)
 	self.wndCS:FindChild("wnd_CharSheet"):SetAML(self:DrawCharacterProfile(unitName, unit))
 	self.wndCS:FindChild("btn_TogglePortrait"):FindChild("cstmwnd_Portrait"):SetCostume(unit)
+	self.wndCS:FindChild("btn_TogglePortrait"):FindChild("cstmwnd_Portrait"):SetOpacity(0.6)
 	self.wndCS:Show(true)
 	self.wndCS:ToFront()
-
 end
 
-function PDA:UpdateCharacterSheet(wndHandler, wndControl)
+function PDA:UpdateCharacterSheet()
 	local player = self.wndCS:GetData()
-	self.wndCS:FindChild("wnd_CharSheet"):SetAML(self:DrawCharacterSheet(player))
-	self.wndCS:FindChild("wnd_CharSheet"):SetVScrollPos(0)
-end
-
-function PDA:OnCharacterSheetClose(wndHandler, wndControl)
-	self.wndCS:Show(false)
-	self.wndCS:FindChild("wnd_Tabs:btn_Profile"):SetCheck(true)
+	local strContentType = self.wndCS:FindChild("wnd_CharSheet"):GetData()
+	local bPublicBio = RPCore:GetTrait(player, "publicBio")
+	local strBio = RPCore:GetTrait(player, "biography")
+	local strURL = RPCore:GetTrait(player, "URL")
+	
+	self.wndCS:FindChild("btn_ShowBio"):Enable(bPublicBio and not (strBio == nil))
+	self.wndCS:FindChild("btn_BioLink"):Enable(not (strURL == nil))
+	
+	if strContentType == "bio" then
+		self.wndCS:FindChild("wnd_CharSheet"):SetAML(self:DrawCharacterBio(player))
+	elseif strContentType == "profile" then
+		self.wndCS:FindChild("wnd_CharSheet"):SetAML(self:DrawCharacterProfile(player))
+	else
+		self.wndCS:FindChild("wnd_CharSheet"):SetAML(self:DrawCharacterProfile(player))
+	end
 end
 
 function PDA:OnRotateRight(wndHandler, wndControl)
@@ -665,12 +787,38 @@ function PDA:OnToggleCharacter(wndHandler, wndControl, eMouseButton, bShow)
 	if wndHandler ~= wndControl then return end
 	local wndCostume = wndControl:FindChild("cstmwnd_Portrait")
 	local wndCharacterSheet = wndControl:GetParent():FindChild("wnd_CharSheet")
-	wndCostume:Show(not (wndCostume:IsShown()))
+	local nL, nT, nR, nB = wndCharacterSheet:GetAnchorOffsets()
+	bShow = bShow or wndControl:GetData()
+	wndCostume:Show(bShow)
+	
 	if wndCostume:IsShown() == true then
-		wndCharacterSheet:SetAnchorOffsets(64, 86, -200, -96)
+		wndCharacterSheet:SetAnchorOffsets(nL, nT, -240, nB)
+		wndCharacterSheet:Show(true)
 	elseif wndCostume:IsShown() == false then
-		wndCharacterSheet:SetAnchorOffsets(64, 86, -64, -96)
+		wndCharacterSheet:SetAnchorOffsets(nL, nT, -64, nB)
+		wndCharacterSheet:Show(true)
 	end
+end
+
+function PDA:OnToggleCharacterFull(wndHandler, wndControl)
+	local bLargePortrait = wndControl:GetData()	
+	local wndPortrait = self.wndCS:FindChild("cstmwnd_Portrait")
+	local nL, nT, nR, nB = wndPortrait:GetAnchorOffsets()
+	local nWidth = wndPortrait:GetWidth()
+	
+	if bLargePortrait == false or bLargePortrait == nil then
+		wndPortrait:SetAnchorOffsets(-433, nT, nR, nB)
+		self.wndCS:FindChild("wnd_CharSheet"):Show(false)
+		wndControl:SetData(true)
+		wndPortrait:SetOpacity(1)
+	elseif bLargePortrait == true then
+		wndPortrait:SetAnchorOffsets(-233, nT, nR, nB)
+		self.wndCS:FindChild("wnd_CharSheet"):Show(true)
+		wndControl:SetData(false)
+		wndPortrait:SetOpacity(0.6)
+	end
+	-- -223 -- small
+	-- -433 -- full
 end
 
 -----------------------------------------------------------------------------------------------
@@ -697,12 +845,11 @@ function PDA:TabShow(wndHandler, wndControl)
 end
 
 function PDA:OnClose(wndHandler, wndControl)
-	wndControl:GetParent():Show(false) -- hide the window
+	wndControl:GetParent():Close() -- hide the window
 end
 
 function PDA:OnStatusShow(wndHandler, wndControl)
 	if wndControl ~= wndHandler then return end
-	Print(wndControl:GetName())
 	if RPCore then
 		local rpState = RPCore:GetLocalTrait("rpflag")
 		if rpState == nil then rpState = 0 end
@@ -715,8 +862,9 @@ end
 
 function PDA:OnStatusCheck(wndHandler, wndControl)
 	local rpState = 0
+	local wndDD = wndControl:GetParent()
 	for i = 1, 3 do 
-		local wndButton = wndHandler:FindChild("input_b_RoleplayToggle" .. i) 
+		local wndButton = wndDD:FindChild("input_b_RoleplayToggle" .. i) 
 		rpState = RPCore:SetBitFlag(rpState,i,wndButton:IsChecked())
 	end 
 	RPCore:SetLocalTrait("rpflag",rpState)
@@ -901,18 +1049,17 @@ function PDA:ShowCharacterSheet(wndControl, wndHandler, iRow, iCol)
 	
 	if unit then
 		self.wndCS:FindChild("btn_TogglePortrait"):FindChild("cstmwnd_Portrait"):SetCostume(unit)
-		if self.wndCS:FindChild("btn_TogglePortrait"):IsShown() == false then
-			self:OnToggleCharacter(self.wndCS:FindChild("btn_TogglePortrait"), self.wndCS:FindChild("btn_TogglePortrait"))
-		end
+		self:OnToggleCharacter(self.wndCS:FindChild("btn_TogglePortrait"), self.wndCS:FindChild("btn_TogglePortrait"), 0, true)
+		self.wndCS:FindChild("btn_TogglePortrait"):FindChild("cstmwnd_Portrait"):SetOpacity(0.6)
 	else
 		self.wndCS:FindChild("btn_TogglePortrait"):FindChild("cstmwnd_Portrait"):SetCostume(nil)
-		if self.wndCS:FindChild("btn_TogglePortrait"):IsShown() == true then
-			self:OnToggleCharacter(self.wndCS:FindChild("btn_TogglePortrait"), self.wndCS:FindChild("btn_TogglePortrait"))
-		end
+		self:OnToggleCharacter(self.wndCS:FindChild("btn_TogglePortrait"), self.wndCS:FindChild("btn_TogglePortrait"), 0, false)
+		self.wndCS:FindChild("btn_TogglePortrait"):FindChild("cstmwnd_Portrait"):SetOpacity(0.6)
 	end
 	self.wndCS:SetData(strPlayerName)
 	self.wndCS:Show(true)
 	self.wndCS:ToFront()
+	self.wndMain:Show(false)
 end
 
 ---- Edit History ----
@@ -938,8 +1085,34 @@ end
 -----------------------------------------------------------------------------------------------
 
 function PDA:OnOptionsOK()
-	self.wndOptions:Show(false) -- hide the window
+	-- RP State Colors
+	local wndStateColors = self.wndOptions:FindChild("group_StateColors")
+	for i = 0, 7 do
+		local strColor = wndStateColors:FindChild("btn_Color_State"..i):GetData()
+		self.tStateColors[i] = strColor
+	end
+	-- Nameplate Positioning
+	local wndNameplatePosition = self.wndOptions:FindChild("group_NameplatePosition")
+	self.tNamePlateOptions.nXoffset = wndNameplatePosition:FindChild("input_n_OffsetX"):GetValue()
+	self.tNamePlateOptions.nYoffset = wndNameplatePosition:FindChild("input_n_OffsetY"):GetValue()
+	local btnAnchor = wndNameplatePosition:FindChild("input_n_Anchor"):GetRadioSelButton("NameplateAnchor")
+	self.tNamePlateOptions.nAnchor = tonumber(btnAnchor:GetName())
+	-- Nameplate Visibility
+	local wndNameplateVisibility = self.wndOptions:FindChild("group_NameplateVisibility")
+	self.tNamePlateOptions.nNameplateDistance = tonumber(wndNameplateVisibility:FindChild("input_n_Distance"):GetValue())
+	self.tNamePlateOptions.bShowMyNameplate = wndNameplateVisibility:FindChild("input_b_ShowPlayerNameplate"):IsChecked()
+	self.tNamePlateOptions.bScaleNameplates = wndNameplateVisibility:FindChild("input_b_DistanceScaling"):IsChecked()
+	self.tNamePlateOptions.bShowNames = wndNameplateVisibility:FindChild("input_b_ShowNames"):IsChecked()
+	self.tNamePlateOptions.bShowTitles = wndNameplateVisibility:FindChild("input_b_ShowTitles"):IsChecked()
+	-- Styles
+	local tStyleTable = GeminiRichText:GetStyleTable(self.wndStyleEditor)
+	for i,v in pairs(tStyleTable) do
+		self.tStyles[i] = v
+	end
+	
+	self.wndOptions:Close() -- hide the window
 	self:UpdateMyNameplate()
+	--Event_FireGenericEvent("GenericEvent_PerspectivePlates_RegisterOffsets", -15 + self.tNamePlateOptions.nXoffset, -15 + self.tNamePlateOptions.nYoffset, 15 + self.tNamePlateOptions.nXoffset, 15 + self.tNamePlateOptions.nYoffset)
 end
 
 function PDA:OnOptionsCancel()
@@ -948,6 +1121,31 @@ end
 
 function PDA:OnShowOptions(wndHandler, wndControl)
 	if wndControl ~= self.wndOptions then return end
+	-- Styles
+	GeminiRichText:SetStyleTable(self.wndStyleEditor, self.tStyles)
+	
+	-- Nameplate Visibility
+	local wndNameplateVisibility = self.wndOptions:FindChild("group_NameplateVisibility")
+	wndNameplateVisibility:FindChild("input_n_Distance"):SetValue(self.tNamePlateOptions.nNameplateDistance)
+	wndNameplateVisibility:FindChild("input_b_ShowPlayerNameplate"):SetCheck(self.tNamePlateOptions.bShowMyNameplate)
+	wndNameplateVisibility:FindChild("input_b_DistanceScaling"):SetCheck(self.tNamePlateOptions.bScaleNameplates)
+	wndNameplateVisibility:FindChild("input_b_ShowNames"):SetCheck(self.tNamePlateOptions.bShowNames)
+	wndNameplateVisibility:FindChild("input_b_ShowTitles"):SetCheck(self.tNamePlateOptions.bShowTitles)
+	
+	--Nameplate Positioning
+	local wndNameplatePosition = self.wndOptions:FindChild("group_NameplatePosition")
+	wndNameplatePosition:FindChild("input_n_OffsetX"):SetValue(self.tNamePlateOptions.nXoffset)
+	wndNameplatePosition:FindChild("input_n_OffsetY"):SetValue(self.tNamePlateOptions.nYoffset)
+	local wndAnchor = wndNameplatePosition:FindChild("input_n_Anchor")
+	local btnAnchor = wndAnchor:FindChild(self.tNamePlateOptions.nAnchor)
+	wndAnchor:SetRadioSelButton("NameplateAnchor", btnAnchor)
+	
+	-- RP State Colors
+	local wndStateColors = self.wndOptions:FindChild("group_StateColors")
+	for i = 0, 7 do
+		wndStateColors:FindChild("btn_Color_State"..i):SetData(self.tStateColors[i])
+		wndStateColors:FindChild("btn_Color_State"..i):FindChild("swatch"):SetBGColor(self.tStateColors[i])
+	end
 	
 end
 
@@ -968,7 +1166,8 @@ function PDA:ResetStateColors(wndHandler, wndControl)
 	local wndOptions = wndControl:GetParent()
 	for i = 0, 7 do
 		local wndCurr = wndOptions:FindChild("btn_Color_State"..i..":swatch")
-		local color = self.tStateColors[i]
+		local color = ktStateColors[i]
+		wndCurr:SetData(color)
 		wndCurr:SetBGColor(color)
 		wndCurr:GetParent():SetData(color)
 	end
