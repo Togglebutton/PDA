@@ -31,26 +31,13 @@ local ktLocalizationStrings = {
 		_build = "Build",
 		_occupation = "Occupation",
 		_description = "Description",
+		_slashHelp = " \nPDA Help:\n----------------------------\nType /pda off to hide all nameplates.\nType /pda on to show nameplates.\nType /pda status [0-7] to change your RP Flag status.\nType /pda to show the main UI.",
 	},
 }
 
-local karRaceToString =
-{
-	[GameLib.CodeEnumRace.Human] 	= Apollo.GetString("RaceHuman"),
-	[GameLib.CodeEnumRace.Granok] 	= Apollo.GetString("RaceGranok"),
-	[GameLib.CodeEnumRace.Aurin] 	= Apollo.GetString("RaceAurin"),
-	[GameLib.CodeEnumRace.Draken] 	= Apollo.GetString("RaceDraken"),
-	[GameLib.CodeEnumRace.Mechari] 	= Apollo.GetString("RaceMechari"),
-	[GameLib.CodeEnumRace.Chua] 	= Apollo.GetString("RaceChua"),
-	[GameLib.CodeEnumRace.Mordesh] 	= Apollo.GetString("CRB_Mordesh"),
-}
+local karRaceToString = { [GameLib.CodeEnumRace.Human] 	= Apollo.GetString("RaceHuman"), [GameLib.CodeEnumRace.Granok] 	= Apollo.GetString("RaceGranok"), [GameLib.CodeEnumRace.Aurin] 	= Apollo.GetString("RaceAurin"), [GameLib.CodeEnumRace.Draken] = Apollo.GetString("RaceDraken"), [GameLib.CodeEnumRace.Mechari] 	= Apollo.GetString("RaceMechari"), [GameLib.CodeEnumRace.Chua] 	= Apollo.GetString("RaceChua"), [GameLib.CodeEnumRace.Mordesh] 	= Apollo.GetString("CRB_Mordesh"),}
 
-local karGenderToString =
-{
-	[0] = Apollo.GetString("CRB_Male"),
-	[1] = Apollo.GetString("CRB_Female"),
-	[2] = Apollo.GetString("CRB_UnknownType"),
-}
+local karGenderToString = { [0] = Apollo.GetString("CRB_Male"), [1] = Apollo.GetString("CRB_Female"), [2] = Apollo.GetString("CRB_UnknownType"),}
 
 local ktNamePlateOptions = {
 	nXoffset = 0,
@@ -98,7 +85,7 @@ local ktRaceSprites =
 	[GameLib.CodeEnumRace.Mordesh] = {[0] = "CRB_CharacterCreateSprites:btnCharC_RG_MoMFlyby", [1] = "CRB_CharacterCreateSprites:btnCharC_RG_MoMFlyby"},
 }
 
-local nVersion
+local ksVersion
 
 -----------------------------------------------------------------------------------------------
 -- Local Functions
@@ -173,15 +160,13 @@ local function CompareVersionNumberTable(tVersionCurrent, tVersionChecking)
 end
 
 local function CompareVersions(strVersionChecking)
-	local strVersionCurrent = nVersion
+	local strVersionCurrent = ksVersion
 	if not (type(strVersionCurrent) == "string" or type(strVersionCurrent) == "number") then return false end
 	if not (type(strVersionChecking) == "string" or type(strVersionChecking) == "number") then return false end
 	local tVersionCurrent = strsplit(".", strVersionCurrent);
 	local tVersionChecking = strsplit(".", strVersionChecking);
 	return CompareVersionNumberTable(tVersionCurrent, tVersionChecking);
 end
-
-
 
 -----------------------------------------------------------------------------------------------
 -- Initialization
@@ -198,6 +183,19 @@ function PDA:new(o)
 	o.tStyles = {}
 	o.tStateColors = {}
 	o.tNamePlateOptions = {}
+	
+	for i,v in pairs(ktStyles) do
+		o.tStyles[i] = v
+	end
+	
+	for i,v in pairs(ktStateColors) do
+		o.tStateColors[i] = v
+	end
+	
+	for i,v in pairs(ktNamePlateOptions) do
+		o.tNamePlateOptions[i] = v
+	end
+	
 	o.bHideAllNameplates = false
 	
 	self.unitPlayer = GameLib.GetPlayerUnit()
@@ -230,7 +228,7 @@ end
 function PDA:OnLoad()
 	self.xmlDoc = XmlDoc.CreateFromFile("PDA.xml")
 	self.xmlDoc:RegisterCallback("OnDocumentLoaded", self)
-	nVersion = XmlDoc.CreateFromFile("toc.xml"):ToTable().Version
+	ksVersion = XmlDoc.CreateFromFile("toc.xml"):ToTable().Version
 end
 
 function PDA:OnDocumentLoaded()
@@ -241,6 +239,7 @@ function PDA:OnDocumentLoaded()
 	RPCore = _G["GeminiPackages"]:GetPackage("RPCore-1.1")
 	
 	self.wndMain = Apollo.LoadForm(self.xmlDoc, "PDAEditForm", nil, self)
+	self.wndMain:FindChild("wnd_Title"):SetText(string.format("PDA %s", ksVersion))
 	self.wndMain:Show(false)
 	self.wndMain:FindChild("btn_Help"):FindChild("wnd_DD"):Show(false)
 	self.wndMain:FindChild("btn_DD_Status"):FindChild("wnd_DD"):Show(false)
@@ -252,11 +251,12 @@ function PDA:OnDocumentLoaded()
 
 	self.wndOptions = Apollo.LoadForm(self.xmlDoc, "OptionsForm", nil, self)
 	self.wndStyleEditor = GeminiRichText:CreateMarkupStyleEditor(self.wndOptions:FindChild("group_Styles"):FindChild("wnd_Styles"), self.tStyles)
-	self.wndOptions:FindChild("wnd_ScrollFrame:group_NameplatePosition"):FindChild("input_n_OffsetX"):SetMinMax(-100, 100, 0)
-	self.wndOptions:FindChild("wnd_ScrollFrame:group_NameplatePosition"):FindChild("input_n_OffsetY"):SetMinMax(-100, 100, 0)
+	self.wndOptions:FindChild("wnd_ScrollFrame:group_NameplatePosition"):FindChild("input_n_OffsetX"):SetMinMax(-200, 200, 0)
+	self.wndOptions:FindChild("wnd_ScrollFrame:group_NameplatePosition"):FindChild("input_n_OffsetY"):SetMinMax(-200, 200, 0)
 	self.wndOptions:Show(false)
 	
 	self.wndCS = Apollo.LoadForm(self.xmlDoc, "CharSheetForm", nil, self)
+	self.wndCS:FindChild("wnd_Title"):SetText(string.format("PDA %s", ksVersion))
 	self.wndCS:FindChild("btn_Help:wnd_DD"):Show(false)
 	self.wndCS:FindChild("btn_BioLink:wnd_DD"):Show(false)
 	self.wndCS:FindChild("btn_BioLink"):Enable(false)
@@ -290,40 +290,42 @@ end
 function PDA:OnSave(eLevel)
 	if (eLevel ~= GameLib.CodeEnumAddonSaveLevel.Account) then return nil end
 	local tSavedData = {
-		["tNamePlateOptions"] = self.tNamePlateOptions,
-		["tStateColors"] = self.tStateColors,
-		["tStyles"] = self.tStyles,
-	}	
+		["tNamePlateOptions"] = {},
+		["tStateColors"] = {},
+		["tStyles"] = {},
+	}
+	
+	for i,v in pairs(self.tNamePlateOptions) do
+		tSavedData.tNamePlateOptions[i] = v
+	end
+	
+	for i,v in pairs(self.tStateColors) do
+		tSavedData.tStateColors[i] = v
+	end
+	
+	for i,v in pairs(self.tStyles) do
+		tSavedData.tStyles[i] = v
+	end
+	
 	return tSavedData
 end
 
 function PDA:OnRestore(eLevel, tData)
-	if (tData.tNamePlateOptions ~= nil) then
-		for i, v in pairs(ktNamePlateOptions) do
-			self.tNamePlateOptions[i] = tData.tNamePlateOptions[i] or v
-		end
-	else
-		for i, v in pairs(ktNamePlateOptions) do
-			self.tNamePlateOptions[i] = v
+	self.OldData = tData
+	if tData.tNamePlateOptions then
+		for i, v in pairs(tData.tNamePlateOptions) do
+				self.tNamePlateOptions[i] = v
 		end
 	end
 	
-	if tData.tStateColors ~= nil then
-		for i, v in pairs(ktStateColors) do
-			self.tStateColors[i] = tData.tStateColors[i] or v
-		end
-	else
-		for i, v in pairs(ktStateColors) do
+	if tData.tStateColors then
+		for i, v in pairs(tData.tStateColors) do
 			self.tStateColors[i] = v
 		end
 	end
 	
-	if tData.tStyles ~= nil then
-		for i, v in pairs(ktStyles) do
-			self.tStyles[i] = tData.tStyles[i] or v
-		end
-	else
-		for i, v in pairs(ktStyles) do
+	if tData.tStyles then
+		for i, v in pairs(tData.tStyles) do
 			self.tStyles[i] = v
 		end
 	end
@@ -338,11 +340,10 @@ end
 -----------------------------------------------------------------------------------------------
 function PDA:OnPDAOn(strCommand, ...)
 	self.wndMain:Invoke() -- show the window
-	--Print(tostring(CompareVersions("2.0.1")))
 end
 
 function PDA:OnPDASlashCommand(strCommand, strArgs)
-	local tArgs = strsplit(" ", strArgs)
+	local tArgs = strsplit(" ", string.lower(strArgs))
 	if tArgs[1] == "on" then
 		self.bHideAllNameplates = false
 	elseif tArgs[1] == "off" then
@@ -350,6 +351,8 @@ function PDA:OnPDASlashCommand(strCommand, strArgs)
 	elseif tArgs[1] == "status" then
 		local rpState = tonumber(tArgs[2])
 		RPCore:SetLocalTrait("rpflag",rpState)
+	elseif tArgs[1] == "help" then
+		Print(ktLocalizationStrings[self.locale]._slashHelp)
 	else
 		self.wndMain:Show(true)
 	end
@@ -734,6 +737,10 @@ function PDA:UpdateCharacterSheet()
 	self.wndCS:FindChild("btn_ShowBio"):Enable(bPublicBio and not (strBio == nil))
 	self.wndCS:FindChild("btn_BioLink"):Enable(not (strURL == nil))
 	
+	if strURL ~= nil then
+		self.wndCS:FindChild("btn_BioLink"):FindChild("wnd_DD"):FindChild("wnd_URL"):SetText(strURL)
+	end
+	
 	if strContentType == "bio" then
 		self.wndCS:FindChild("wnd_CharSheet"):SetAML(self:DrawCharacterBio(player))
 	elseif strContentType == "profile" then
@@ -819,6 +826,12 @@ function PDA:OnToggleCharacterFull(wndHandler, wndControl)
 	end
 	-- -223 -- small
 	-- -433 -- full
+end
+
+function PDA:OnURLShow(wndHandler, wndControl)
+	if wndHandler ~= wndControl then return end
+	local strURL = wndControl:FindChild("wnd_URL"):GetText()
+	wndControl:FindChild("CopyToClipboard"):SetActionData(GameLib.CodeEnumConfirmButtonType.CopyToClipboard, strURL)
 end
 
 -----------------------------------------------------------------------------------------------
