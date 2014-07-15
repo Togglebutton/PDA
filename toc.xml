@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Addon Author="Togglebutton" APIVersion="8" Name="PDA" Description="Personnel Data Access is an addon for Role Players to show their in character status, full name and display a datafile about their characters in the 3D game world. " Version="1.05">
-	<Form Name="PDA.xml"/>
+<Addon Author="Togglebutton" APIVersion="9" Name="PDA" Description="Personnel Data Access is an addon for Role Players to show their in character status, full name and display a datafile about their characters in the 3D game world. " Version="2.0.0">
+    <Form Name="PDA.xml"/>
     <Script Name="PDA.lua"/>
-	<Form Name="GeminiColor\GeminiColor.xml"/>
-	<Script Name="GeminiColor\GeminiColor.lua"/>
-    <Script Name="GeminiPackages\GeminiPackages.lua"/>
+    <Form Name="GeminiColor\GeminiColor.xml"/>
+    <Script Name="GeminiColor\GeminiColor.lua"/>
+    <Form Name="GeminiRichText\GeminiRichText.xml"/>
+    <Script Name="GeminiRichText\GeminiRichText.lua"/>
+	<Script Name="GeminiPackages\GeminiPackages.lua"/>
     <Script Name="RPCore\RPCore.lua"/>
 </Addon>

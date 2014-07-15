@@ -192,13 +192,14 @@ RPCore.Debug_Errors = 1
 RPCore.Debug_Comm = 2 
 RPCore.Debug_Access = 3
 
-RPCore.Version = "1.0"
+RPCore.Version = "1.2"
 
 RPCore.TTL_Trait = 120
 RPCore.TTL_Version = 300
 RPCore.TTL_Flood = 30
 RPCore.TTL_Channel = 60
 RPCore.TTL_Packet = 15
+RPCore.TTL_GetAll = 120
 RPCore.TTL_CacheDie = 604800
 
 RPCore.Flag_InCharacter = 1
@@ -291,14 +292,29 @@ function RPCore:OnLoad()
 end 
 
 function RPCore:OnSave(eLevel)
-	if (eLevel ~= GameLib.CodeEnumAddonSaveLevel.Character) then return nil end 
+	if (eLevel == GameLib.CodeEnumAddonSaveLevel.Character) then
+		return { localData = self.tLocalTraits }
+	elseif (eLevel == GameLib.CodeEnumAddonSaveLevel.Realm) then
+		return { cachedData = self.tCachedPlayerData }
+	end
 
-	return self:CacheAsTable()
+	return nil
 end 
 
 function RPCore:OnRestore(eLevel, tData)
 	if (tData ~= nil and eLevel == GameLib.CodeEnumAddonSaveLevel.Character) then 
-		self:LoadFromTable(tData)
+		-- Check for legacy RPCore 1.0 data
+		local tLocal = tData.localData 
+		local tCache = tData.cachedData
+	
+		self.tLocalTraits = tLocal or {}
+		
+		-- For legacy support of RPCore 1.0 imports
+		if (tCache ~= nil) then 
+			self.tCachedPlayerData = tCache
+		end
+	elseif (tData ~= nil and eLevel == GameLib.CodeEnumAddonSaveLevel.Realm) then 
+		self.tCachedPlayerData = tData.cachedData or {}
 	end
 end
 
@@ -549,7 +565,6 @@ function RPCore:QueryVersion(strTarget)
 	return tVersionInfo.version, tVersionInfo.addons
 end
 
-
 function RPCore:StoreVersion(strTarget, strVersion, aProtocols)
 	if (strTarget == nil or strVersion == nil) then return end 
 
@@ -561,6 +576,47 @@ function RPCore:StoreVersion(strTarget, strVersion, aProtocols)
 	Event_FireGenericEvent("RPCore_VersionUpdated", 
 		{ player = strTarget, version = strVersion, protocols = aProtocols })
 	
+end
+
+function RPCore:GetAllTraits(strTarget)
+	local tPlayerTraits = self.tCachedPlayerData[strTarget] or {}
+	
+	self:Log(RPCore.Debug_Access,string.format("Fetching %s' full trait set", strTarget, strVersion))
+	if (self:TimeSinceLastAddonProtocolCommand(strTarget,nil,"getall") > RPCore.TTL_GetAll) then 
+		local mMessage = RPCore.RCMPMessage:new()
+		mMessage:SetDestination(strTarget)
+		mMessage:SetType(RPCore.RCMPMessage.Type_Request)
+		mMessage:SetCommand("getall")
+		self:SendMessage(mMessage)
+		self:MarkAddonProtocolCommand(strTarget,nil,"getall")
+	end
+	
+	local tResult = {}
+	
+	for key, data in pairs(tPlayerTraits) do
+		if (key:sub(1,2) ~= "__") then 
+			tResult[key] = data.data
+		end
+	end
+	
+	return tResult
+end
+
+function RPCore:StoreAllTraits(strTarget,tTraits)
+	self:Log(RPCore.Debug_Access,string.format("Storing new trait cache for %s", strTarget))
+	self.tCachedPlayerData[strTarget] = tTraits
+	
+	local tResult = {}
+	
+	for key, data in pairs(tPlayerTraits) do
+		if (string:sub(1,2) ~= "__") then 
+			tResult[key] = data.data
+		end
+	end
+	
+	Event_FireGenericEvent("RPCore_PlayerUpdated", 
+		{ player = strTarget, traits = tResult })
+
 end
 
 function RPCore:TimeSinceLastAddonProtocolCommand(strTarget, strAddonProtocol, strCommand)
@@ -644,6 +700,10 @@ function RPCore:ProcessMessage(packet)
 				
 				local mReply = self:Reply(packet,{ version = RPCore.Version, protocols = aProtocols })
 				self:SendMessage(mReply)
+			elseif (packet:GetCommand() == "getall") then
+				-- RPCore 1.1 and later
+				local mReply = self:Reply(packet,self.tLocalTraits)
+				self:SendMessage(mReply)
 			else
 				-- This is not a command we know.  Uhoh.
 				local mReply = self:Reply(packet, { error = self.Error_UnimplementedCommand })
@@ -661,7 +721,15 @@ function RPCore:ProcessMessage(packet)
 			elseif (packet:GetCommand() == "version") then
 				-- We got someone's version information!
 				self:StoreVersion(packet:GetOrigin(), tPayload.version, tPayload.protocols)	
+			elseif (packet:GetCommand() == "getall") then 
+				-- RPCore 1.1 and later only
+				self:StoreAllTraits(packet:GetOrigin(), tPayload)
 			end			
+		elseif (eType == RPCore.RCMPMessage.Type_Error) then
+			if (packet:GetCommand() == "getall") then
+				Event_FireGenericEvent("RPCore_PlayerUpdated", 
+					{ player = packet:GetOrigin(), unsupported = true })				
+			end
         end
     else
         -- This is something explicitly targeted at an addon.
