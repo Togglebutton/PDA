@@ -155,9 +155,9 @@ end
 
 local function GetLocale()
 	local strCancel = Apollo.GetString("CRB_Cancel")
-	if strCancel == "Abbrechen" and ktLocalizationStrings["frFR"] then
+	if strCancel == "Annuler" and ktLocalizationStrings["frFR"] then
 		return "frFR"
-	elseif strCancel == "Annuler" and ktLocalizationStrings["deDE"] then
+	elseif strCancel == "Abbrechen" and ktLocalizationStrings["deDE"] then
 		return "deDE"
 	else
 		return "enUS"
@@ -927,9 +927,9 @@ end
 ---- Edit Profile Methods ----
 
 function PDA:OnEditShow(wndHandler, wndControl)
+	
 	if wndHandler ~= wndControl then return end
 	local wndEditProfile = self.wndMain:FindChild("wnd_EditProfile")
-	
 	local rpFullname = RPCore:GetLocalTrait("fullname") or GameLib.GetPlayerUnit():GetName()
 	local rpShortBlurb = RPCore:GetLocalTrait("shortdesc")
 	local rpTitle = RPCore:GetLocalTrait("title")
@@ -940,6 +940,7 @@ function PDA:OnEditShow(wndHandler, wndControl)
 	local rpJob = RPCore:GetLocalTrait("job")
 	local rpGender = RPCore:GetLocalTrait("gender") or karGenderToString[GameLib.GetPlayerUnit():GetGender()]
 	local rpURL = RPCore:GetLocalTrait("URL")
+	self.locale = GetLocale()
 	
 	wndEditProfile:FindChild("input_s_Name"):SetText(rpFullname)
 	wndEditProfile:FindChild("input_s_Name"):FindChild("label"):Show(false)
@@ -962,11 +963,6 @@ function PDA:OnEditShow(wndHandler, wndControl)
 	if rpRace and string.len(tostring(rpRace)) > 1 then
 		wndEditProfile:FindChild("input_s_Race"):SetText(rpRace)
 		wndEditProfile:FindChild("input_s_Race"):FindChild("label"):Show(false)
-	end
-	
-	if rpGender and string.len(tostring(rpGender)) > 1 then
-		wndEditProfile:FindChild("input_s_Gender"):SetText(rpGender)
-		wndEditProfile:FindChild("input_s_Gender"):FindChild("label"):Show(false)
 	end
 	
 	if rpAge and string.len(tostring(rpAge)) > 1 then
@@ -992,6 +988,18 @@ function PDA:OnEditShow(wndHandler, wndControl)
 	if rpURL and string.len(tostring(rpURL)) > 1 then
 		wndEditProfile:FindChild("input_s_URL"):SetText(rpURL)
 		wndEditProfile:FindChild("input_s_URL"):FindChild("label"):Show(false)
+	end
+	
+	if self.locale ~= "enUS" and wndEditProfile:FindChild("input_s_Name"):FindChild("label"):GetText() ~= string.format("%s:", ktLocalizationStrings[self.locale]._name) then
+		wndEditProfile:FindChild("input_s_Weight"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._build))
+		wndEditProfile:FindChild("input_s_Height"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._height))
+		wndEditProfile:FindChild("input_s_Age"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._age))
+		wndEditProfile:FindChild("input_s_Gender"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._gender))
+		wndEditProfile:FindChild("input_s_Race"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._species))
+		wndEditProfile:FindChild("input_s_Job"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._occupation))
+		wndEditProfile:FindChild("input_s_Description"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._description))
+		wndEditProfile:FindChild("input_s_Title"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._title))
+		wndEditProfile:FindChild("input_s_Name"):FindChild("label"):SetText(string.format("%s:", ktLocalizationStrings[self.locale]._name))
 	end
 	
 end

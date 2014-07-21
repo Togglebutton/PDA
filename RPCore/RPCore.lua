@@ -310,7 +310,7 @@ function RPCore:OnRestore(eLevel, tData)
 		self.tLocalTraits = tLocal or {}
 		
 		-- For legacy support of RPCore 1.0 imports
-		if (tCache ~= nil) then 
+		if (tCache ~= nil) then
 			self.tCachedPlayerData = tCache
 		end
 	elseif (tData ~= nil and eLevel == GameLib.CodeEnumAddonSaveLevel.Realm) then 
@@ -602,14 +602,14 @@ function RPCore:GetAllTraits(strTarget)
 	return tResult
 end
 
-function RPCore:StoreAllTraits(strTarget,tTraits)
+function RPCore:StoreAllTraits(strTarget,tPlayerTraits)
 	self:Log(RPCore.Debug_Access,string.format("Storing new trait cache for %s", strTarget))
-	self.tCachedPlayerData[strTarget] = tTraits
+	self.tCachedPlayerData[strTarget] = tPlayerTraits
 	
 	local tResult = {}
 	
 	for key, data in pairs(tPlayerTraits) do
-		if (string:sub(1,2) ~= "__") then 
+		if (key:sub(1,2) ~= "__") then 
 			tResult[key] = data.data
 		end
 	end
@@ -867,13 +867,13 @@ function RPCore:CleanupCache()
 			if (nNow - tTrait.time > RPCore.TTL_CacheDie) then 
 				tRecord[strParam] = nil 
 			end 
-		end 
-		
+		end
+
 		local nCount = 0
 		for strParam, tTrait in pairs(tRecord) do 
 			nCount = nCount + 1
 		end
-		
+
 		if (nCount == 0) then 
 			self.tCachedPlayerData[strPlayerName] = nil 
 		end 
