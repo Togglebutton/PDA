@@ -84,6 +84,7 @@ local ktNamePlateOptions = {
 	bScaleNameplates = false,
 	nNameplateDistance = 50,
 	nAnchor = 1,
+	bShowTargetNameplate = false,
 }
 
 local ktStateColors = {
@@ -252,11 +253,12 @@ end
 -- PDA Default Apollo Methods
 -----------------------------------------------------------------------------------------------
 function PDA:OnLoad()
+	Apollo.LoadSprites("PDA_Sprites.xml", "PDA_Sprites")
 	self.xmlDoc = XmlDoc.CreateFromFile("PDA.xml")
 	self.xmlDoc:RegisterCallback("OnDocumentLoaded", self)
 	ksVersion = XmlDoc.CreateFromFile("toc.xml"):ToTable().Version
 end
-	
+
 function PDA:OnDocumentLoaded()
 
 	GeminiColor = Apollo.GetPackage("GeminiColor").tPackage
@@ -280,7 +282,7 @@ function PDA:OnDocumentLoaded()
 	self.wndOptions:FindChild("wnd_ScrollFrame:group_NameplatePosition"):FindChild("input_n_OffsetX"):SetMinMax(-200, 200, 0)
 	self.wndOptions:FindChild("wnd_ScrollFrame:group_NameplatePosition"):FindChild("input_n_OffsetY"):SetMinMax(-200, 200, 0)
 	self.wndOptions:Show(false)
-	
+
 	self.wndCS = Apollo.LoadForm(self.xmlDoc, "CharSheetForm", nil, self)
 	self.wndCS:FindChild("wnd_Title"):SetText(string.format("PDA %s", ksVersion))
 	self.wndCS:FindChild("btn_Help:wnd_DD"):Show(false)
@@ -288,8 +290,6 @@ function PDA:OnDocumentLoaded()
 	self.wndCS:FindChild("btn_BioLink"):Enable(false)
 	self.wndCS:FindChild("btn_TogglePortrait"):FindChild("cstmwnd_Portrait"):SetMask(string.format("%s\\textures\\CostumeMask.tga", Apollo.GetAssetFolder()))
 	self.wndCS:Show(false)
-
-	Apollo.LoadSprites("PDA_Sprites.xml", "PDA_Sprites")
 
 	Apollo.RegisterEventHandler("UnitCreated","OnUnitCreated",self) 
 	Apollo.RegisterEventHandler("UnitDestroyed","OnUnitDestroyed",self)
@@ -299,13 +299,13 @@ function PDA:OnDocumentLoaded()
 	Apollo.RegisterEventHandler("ChangeWorld", "OnWorldChange", self)
 
 	Apollo.RegisterSlashCommand("pda", "OnPDASlashCommand", self)
-	
+
 	-- time, repeat, callback, self
 	self.tmrNamePlareRefresh = ApolloTimer.Create(1, true, "RefreshPlates", self)
 	self.tmrUpdateMyNameplate = ApolloTimer.Create(5, false, "UpdateMyNameplate", self)
 	self.tmrRefreshCharacterSheet = ApolloTimer.Create(3, true, "UpdateCharacterSheet", self)
 	self.tmrRefreshCharacterSheet:Stop()
-	
+
 	self.locale = GetLocale()
 end
 
@@ -412,6 +412,7 @@ function PDA:OnUnitCreated(unitNew)
 			end
 		end
 		local rpVersion, rpAddons = RPCore:QueryVersion(unitNew:GetName())
+		--RPCore:GetAllTraits(unitNew:GetName())
 	end
 end
 
@@ -428,7 +429,6 @@ end
 function PDA:OnRPCoreCallback(tArgs)
 	local strUnitName = tArgs.player
 	local unit = GameLib.GetPlayerUnitByName(strUnitName)
-	RPCore:GetAllTraits(strUnitName)
 	if unit == nil then return end
 	local idUnit = unit:GetId()
 	if self.arUnit2Nameplate[idUnit] ~= nil and self.arUnit2Nameplate[idUnit].wndNameplate:IsValid() then
@@ -514,15 +514,19 @@ function PDA:HelperVerifyVisibilityOptions(tNameplate)
 	if bHiddenUnit then
 		return false
 	end
-	
+		
 	if tNameplate.bOccluded or not tNameplate.bOnScreen then
 		return false
 	end
-	
+		
 	if unitOwner:IsThePlayer() then
 		return self.tNamePlateOptions.bShowMyNameplate
 	end
 	
+	if self.tNamePlateOptions.bShowTargetNameplate == true then
+		return GameLib.GetTargetUnit() == unitOwner
+	end
+		
 	return true
 end
 
@@ -1161,6 +1165,7 @@ function PDA:OnOptionsOK()
 	local wndNameplateVisibility = self.wndOptions:FindChild("group_NameplateVisibility")
 	self.tNamePlateOptions.nNameplateDistance = tonumber(wndNameplateVisibility:FindChild("input_n_Distance"):GetValue())
 	self.tNamePlateOptions.bShowMyNameplate = wndNameplateVisibility:FindChild("input_b_ShowPlayerNameplate"):IsChecked()
+	self.tNamePlateOptions.bShowTargetNameplate = wndNameplateVisibility:FindChild("input_b_ShowTargetOnly"):IsChecked()
 	self.tNamePlateOptions.bScaleNameplates = wndNameplateVisibility:FindChild("input_b_DistanceScaling"):IsChecked()
 	self.tNamePlateOptions.bShowNames = wndNameplateVisibility:FindChild("input_b_ShowNames"):IsChecked()
 	self.tNamePlateOptions.bShowTitles = wndNameplateVisibility:FindChild("input_b_ShowTitles"):IsChecked()
@@ -1187,6 +1192,7 @@ function PDA:OnShowOptions(wndHandler, wndControl)
 	local wndNameplateVisibility = self.wndOptions:FindChild("group_NameplateVisibility")
 	wndNameplateVisibility:FindChild("input_n_Distance"):SetValue(self.tNamePlateOptions.nNameplateDistance)
 	wndNameplateVisibility:FindChild("input_b_ShowPlayerNameplate"):SetCheck(self.tNamePlateOptions.bShowMyNameplate)
+	wndNameplateVisibility:FindChild("input_b_ShowTargetOnly"):SetCheck(self.tNamePlateOptions.bShowTargetNameplate)
 	wndNameplateVisibility:FindChild("input_b_DistanceScaling"):SetCheck(self.tNamePlateOptions.bScaleNameplates)
 	wndNameplateVisibility:FindChild("input_b_ShowNames"):SetCheck(self.tNamePlateOptions.bShowNames)
 	wndNameplateVisibility:FindChild("input_b_ShowTitles"):SetCheck(self.tNamePlateOptions.bShowTitles)
@@ -1214,7 +1220,12 @@ function PDA:ColorSelect(strColor, wndButton)
 end
 
 function PDA:ColorButtonClick(wndHandler, wndControl)
-	GeminiColor:ShowColorPicker(self, "ColorSelect", true, wndControl:GetData(), wndControl)
+	local tData = {
+		callback = "ColorSelect",
+		bCustomColor = true,
+		strInitialColor = wndControl:GetData(),
+	}
+	GeminiColor:ShowColorPicker(self, tData, wndControl)
 end
 
 function PDA:ResetStyles(wndHandler, wndControl)
