@@ -761,7 +761,7 @@ function PDA:CreateCharacterSheet(wndHandler, wndControl)
 end
 
 function PDA:UpdateCharacterSheet(strPlayer)
-	local player = strPlayer or self.wndCS:GetData()
+	local player = self.wndCS:GetData()
 	local strContentType = self.wndCS:FindChild("wnd_CharSheet"):GetData()
 	local bPublicBio = RPCore:GetTrait(player, "publicBio")
 	local strBio = RPCore:GetTrait(player, "biography")
